@@ -1,0 +1,12 @@
+{
+  "name": "PSX Dividend Desk",
+  "short_name": "Dividend Desk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F4F0",
+  "theme_color": "#0D4A36",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

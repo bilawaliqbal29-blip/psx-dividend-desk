@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PSX Dividend Desk</title>
+<meta name="description" content="Save daily, buy weekly, and track dividends from Pakistan Stock Exchange shares.">
+<meta name="theme-color" content="#0D4A36">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --paper:#F2F4F0; --surface:#FCFCFB; --sunk:#E8ECE7;
+  --ink:#16241E; --ink-2:#3E4D45; --muted:#5C6B63; --line:#D3DAD4;
+  --green:#13805A; --green-ink:#0F6B4B; --deep:#0D4A36; --deep-ink:#E9F2EC;
+  --brass:#B07A1E; --brass-ink:#7E5612; --brass-wash:#F5ECDA;
+  --red:#A63D2F; --red-wash:#F6E3DF; --ok-wash:#DFEFE6;
+  --radius-s:6px; --radius-m:10px;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Public Sans",ui-sans-serif,system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#111513; --surface:#1A1D1B; --sunk:#232825;
+    --ink:#E6ECE8; --ink-2:#C3CDC7; --muted:#93A199; --line:#323A35;
+    --green:#3A9E78; --green-ink:#6CC7A1; --deep:#0E3A2C; --deep-ink:#E3EFE8;
+    --brass:#BF8A28; --brass-ink:#E2B65F; --brass-wash:#2C2416;
+    --red:#D8705F; --red-wash:#3A211C; --ok-wash:#18302A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111513; --surface:#1A1D1B; --sunk:#232825;
+  --ink:#E6ECE8; --ink-2:#C3CDC7; --muted:#93A199; --line:#323A35;
+  --green:#3A9E78; --green-ink:#6CC7A1; --deep:#0E3A2C; --deep-ink:#E3EFE8;
+  --brass:#BF8A28; --brass-ink:#E2B65F; --brass-wash:#2C2416;
+  --red:#D8705F; --red-wash:#3A211C; --ok-wash:#18302A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--body);font-variant-numeric:tabular-nums;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+h1,h2,h3{font-family:var(--display);line-height:1.15;margin:0;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.5rem}
+h3{font-size:1.1rem}
+p{margin:0 0 .75em}
+a{color:var(--green-ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+
+/* header */
+.top{background:var(--deep);color:var(--deep-ink)}
+.top .wrap{display:flex;align-items:center;gap:12px;padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:14px}
+.mark{width:34px;height:34px;flex:none}
+.brand{flex:1;min-width:0}
+.brand h1{font-size:1.2rem;font-weight:800}
+.brand small{display:block;opacity:.75;font-size:.8rem}
+.sync{border:1px solid rgba(255,255,255,.28);background:transparent;color:inherit;border-radius:999px;padding:6px 12px;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.sync[data-s="ok"]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#6CC7A1;margin-right:6px;vertical-align:1px}
+.sync[data-s="err"]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#E59A8B;margin-right:6px;vertical-align:1px}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);padding:0}
+nav.tabs button{background:none;border:0;padding:10px 4px 9px;cursor:pointer;color:var(--muted);font-size:.78rem;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button[aria-selected="true"]{color:var(--green-ink)}
+@media (min-width:820px){
+  body{padding-bottom:40px}
+  nav.tabs{position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--line)}
+  nav.tabs .wrap{display:flex;gap:6px;padding:0 16px}
+  nav.tabs button{flex-direction:row;font-size:.92rem;padding:13px 12px;border-bottom:3px solid transparent}
+  nav.tabs button svg{width:18px;height:18px}
+  nav.tabs button[aria-selected="true"]{border-bottom-color:var(--green)}
+}
+
+main{padding:22px 0 30px}
+section.view{display:none}
+section.view.on{display:block}
+.lede{color:var(--ink-2);max-width:60ch}
+.stack>*+*{margin-top:18px}
+.muted{color:var(--muted)}
+.small{font-size:.87rem}
+.num{font-variant-numeric:tabular-nums}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-m);padding:16px}
+.panel h3{margin-bottom:8px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:baseline;gap:8px 12px;flex-wrap:wrap}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-s);padding:9px 14px;cursor:pointer;font-weight:600}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.quiet{border-color:transparent;background:none;color:var(--green-ink);padding-left:6px;padding-right:6px}
+.btn.danger{color:var(--red)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.87rem;font-weight:600;color:var(--ink-2)}
+input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-s);padding:9px 10px;min-width:0;width:100%;font-weight:400;color:var(--ink)}
+textarea{min-height:130px;font-size:.85rem;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:520px){.grid3{grid-template-columns:1fr 1fr}}
+
+/* savings week strip */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.day{border:1px solid var(--line);border-radius:var(--radius-s);padding:7px 2px 6px;text-align:center;background:var(--surface);cursor:pointer;font-size:.78rem;color:var(--muted)}
+.day b{display:block;font-family:var(--display);font-size:1rem;color:var(--ink);font-weight:700}
+.day.saved{background:var(--ok-wash);border-color:var(--green);color:var(--green-ink)}
+.day.today{box-shadow:inset 0 -3px 0 var(--brass)}
+.day.future{opacity:.45;cursor:default}
+
+/* the buy slip */
+.slip{position:relative;background:var(--surface);border-radius:var(--radius-m);overflow:hidden;border:1px solid var(--line)}
+.slip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:14px;background:
+  radial-gradient(circle at 0 9px,var(--paper) 5px,transparent 5.5px) 0 0/14px 18px repeat-y;z-index:1}
+.slip-head{background:var(--deep);color:var(--deep-ink);padding:16px 18px 16px 30px}
+.slip-head .amount{font-family:var(--display);font-weight:800;font-size:clamp(2rem,7vw,2.8rem);line-height:1;letter-spacing:-.02em;margin-top:6px}
+.slip-head .sub{opacity:.8;font-size:.88rem;margin-top:6px}
+.slip-body{padding:6px 18px 16px 30px}
+.line{display:grid;grid-template-columns:1fr auto;gap:2px 14px;padding:12px 0;border-bottom:1px dashed var(--line)}
+.line:last-of-type{border-bottom:0}
+.line>div:first-child{grid-column:1;grid-row:1}
+.line .sym{font-family:var(--display);font-weight:700;font-size:1.15rem}
+.line .nm{color:var(--muted);font-size:.85rem;grid-column:1;grid-row:2}
+.line .amt{font-weight:700;text-align:right;grid-column:2;grid-row:1}
+.line .qty{color:var(--muted);font-size:.85rem;text-align:right;grid-column:2;grid-row:2}
+.line .why{grid-column:1/-1;font-size:.84rem;color:var(--ink-2)}
+.slip-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-top:2px solid var(--ink);margin-top:4px;padding-top:12px}
+.slip-foot .tot{font-weight:700}
+
+/* picks table */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--surface);font-size:.88rem;cursor:pointer;user-select:none}
+.chip input{accent-color:var(--green);margin:0}
+.chip:has(input:checked){border-color:var(--green);background:var(--ok-wash)}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--radius-m);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);font-size:.8rem;background:var(--surface);position:sticky;top:0}
+th:first-child,td:first-child{text-align:left}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.pick td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+td .s{font-weight:700}
+td .n{display:block;color:var(--muted);font-size:.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.score{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar{width:54px;height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green);border-radius:3px}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--sunk);color:var(--ink-2);margin-left:4px;vertical-align:1px}
+.tag.warn{background:var(--red-wash);color:var(--red)}
+.tag.isl{background:var(--ok-wash);color:var(--green-ink)}
+tr.rowbtn{cursor:pointer}
+tr.rowbtn:hover td{background:var(--sunk)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius-m);overflow:hidden}
+.stats>div{background:var(--surface);padding:12px 14px}
+.stats .k{font-size:.8rem;color:var(--muted)}
+.stats .v{font-family:var(--display);font-weight:700;font-size:1.3rem;line-height:1.2}
+.stats .v.brass{color:var(--brass-ink)}
+@media (max-width:520px){.stats{grid-template-columns:1fr 1fr}.stats>div:last-child:nth-child(odd){grid-column:1/-1}}
+
+.note{border-left:3px solid var(--brass);background:var(--brass-wash);padding:10px 12px;border-radius:0 var(--radius-s) var(--radius-s) 0;font-size:.9rem}
+.note.bad{border-left-color:var(--red);background:var(--red-wash)}
+.empty{text-align:left;padding:22px 18px}
+.empty h3{margin-bottom:6px}
+ol.steps{padding-left:1.3em;margin:8px 0 0}
+ol.steps li{margin-bottom:6px}
+details summary{cursor:pointer;font-weight:600}
+
+/* chart */
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .gridl{stroke:var(--line);stroke-width:1}
+.chart .axis{fill:var(--muted);font-size:11px;font-family:var(--body)}
+.chart .lbl{font-size:12px;font-weight:600;font-family:var(--body);fill:var(--ink-2)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;color:var(--ink-2);margin:6px 0 4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid}
+.legend i.sq{width:10px;height:10px;border:0;border-radius:2px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:.8rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%);opacity:0;transition:opacity .1s}
+.tip.on{opacity:1}
+
+/* dialog */
+dialog{border:1px solid var(--line);border-radius:var(--radius-m);background:var(--surface);color:var(--ink);padding:0;width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
+dialog::backdrop{background:rgba(10,20,15,.45)}
+dialog .dh{padding:16px 18px 6px}
+dialog .db{padding:6px 18px 12px;overflow:auto}
+dialog .df{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:.92rem;opacity:0;pointer-events:none;transition:.2s;z-index:50;max-width:calc(100vw - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#13805A"/><path d="M8 24V14m6 10V10m6 14v-7m6 7V8" stroke="#F2F4F0" stroke-width="3" stroke-linecap="round"/><circle cx="26" cy="8" r="3" fill="#E2B65F"/></svg>
+    <div class="brand"><h1>PSX Dividend Desk</h1><small id="asof">No market data yet</small></div>
+    <button class="sync" id="syncBtn" type="button">Sign in</button>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="wrap" role="tablist">
+    <button role="tab" data-v="week" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 3v4m8-4v4"/></svg>This week</button>
+    <button role="tab" data-v="picks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10m6 10V4m6 16v-7m4 7H2"/></svg>Rankings</button>
+    <button role="tab" data-v="folio" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v10m-3-7.5c0-1.4 1.3-2 3-2s3 .7 3 2-1.3 1.8-3 2.2-3 .9-3 2.3 1.3 2 3 2 3-.6 3-2"/></svg>Holdings</button>
+    <button role="tab" data-v="data" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>Import &amp; settings</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- THIS WEEK -->
+<section class="view on" id="v-week">
+  <div class="stack">
+    <div class="panel">
+      <div class="spread"><h3>Savings this week</h3><span class="muted small" id="weekRange"></span></div>
+      <p class="muted small" style="margin:0">Tap a day to mark what you set aside. Tap again to change or clear it.</p>
+      <div class="week" id="weekStrip"></div>
+    </div>
+    <div id="slipArea"></div>
+  </div>
+</section>
+
+<!-- RANKINGS -->
+<section class="view" id="v-picks">
+  <div class="stack">
+    <div>
+      <h2>Rankings</h2>
+      <p class="lede" style="margin-top:6px">Each share gets a score out of 100. It weighs how much it pays (30%), whether profits cover that payout (20%), price against earnings (15%), how steadily it has paid (15%), growth (10%), and how easy it is to buy (10%). The top ones, at most two per sector, become your target list.</p>
+    </div>
+    <div class="filters">
+      <label class="chip"><input type="checkbox" id="fShariah">Shariah-compliant only</label>
+      <label class="chip"><input type="checkbox" id="fEtf" checked>Include ETFs</label>
+      <label class="chip"><input type="checkbox" id="fAll">Show non-payers too</label>
+      <input type="text" id="fSearch" placeholder="Find a symbol" style="width:150px">
+    </div>
+    <div id="picksArea"></div>
+  </div>
+</section>
+
+<!-- HOLDINGS -->
+<section class="view" id="v-folio">
+  <div class="stack">
+    <div class="spread"><h2>Holdings</h2><div class="row"><button class="btn" id="addTradeBtn" type="button">Record a trade</button><button class="btn" id="addDivBtn" type="button">Record a dividend</button></div></div>
+    <div class="stats" id="folioStats"></div>
+    <div id="holdArea"></div>
+    <div class="panel">
+      <h3>Dividends received</h3>
+      <div id="divArea"></div>
+    </div>
+    <div class="panel">
+      <div class="spread"><h3>Where this could go</h3><span class="muted small" id="projNote"></span></div>
+      <p class="muted small">An illustration based on the assumptions below, not a forecast. Prices and dividends on PSX can fall as well as rise.</p>
+      <div class="grid3" style="margin:10px 0 6px">
+        <label class="f">Years<select id="pYears"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label>
+        <label class="f">Dividend yield %<input type="number" id="pYield" step="0.5" min="0" max="25"></label>
+        <label class="f">Price growth % a year<input type="number" id="pGrowth" step="0.5" min="-10" max="25" value="5"></label>
+      </div>
+      <label class="chip" style="margin:4px 0 8px"><input type="checkbox" id="pReinvest" checked>Reinvest dividends</label>
+      <div class="legend"><span><i style="border-color:var(--green)"></i>Portfolio value</span><span><i style="border-color:var(--muted);border-top-style:dashed"></i>Money you put in</span></div>
+      <div class="chart" id="projChart"></div>
+      <div class="legend" style="margin-top:14px"><span><i class="sq" style="background:var(--brass)"></i>Dividends received in that year, after tax</span></div>
+      <div class="chart" id="divChart"></div>
+      <details style="margin-top:10px"><summary class="small">See as a table</summary><div class="tbl-wrap" style="margin-top:8px"><table id="projTable"></table></div></details>
+    </div>
+  </div>
+</section>
+
+<!-- IMPORT & SETTINGS -->
+<section class="view" id="v-data">
+  <div class="stack">
+    <h2>Import market data</h2>
+    <div class="panel">
+      <h3>Weekly update from the PSX screener</h3>
+      <p class="small">Do this once a week, before you buy. It refreshes prices, dividend yields and P/E ratios for every company.</p>
+      <ol class="steps small">
+        <li>Open <a href="https://dps.psx.com.pk/screener" target="_blank" rel="noopener">dps.psx.com.pk/screener</a> on a computer and press <b>Search</b> with no filters.</li>
+        <li>Select the whole results table, from the header row to the last row, and copy it (Ctrl+C).</li>
+        <li>Paste it below and press <b>Import</b>.</li>
+      </ol>
+      <textarea id="pasteBox" placeholder="Paste the table here" aria-label="Pasted table"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="importBtn" type="button">Import</button>
+        <label class="btn" style="display:inline-block">Choose a file<input type="file" id="fileIn" accept=".csv,.txt,.tsv,.lis,.Z,.z" class="hidden"></label>
+        <span class="muted small" id="importMsg"></span>
+      </div>
+      <p class="muted small" style="margin-top:10px">Files work too: a CSV saved from the screener, or the daily closing-rates file from <a href="https://dps.psx.com.pk/downloads" target="_blank" rel="noopener">PSX Downloads</a> (the .Z file), which updates prices only.</p>
+    </div>
+
+    <div class="panel">
+      <h3>Dividend history for one company</h3>
+      <p class="small">Optional, but it sharpens the steadiness score. Open a company page such as <a href="https://dps.psx.com.pk/company/OGDC" target="_blank" rel="noopener">OGDC</a>, go to <b>Payouts</b>, copy the table and paste it here.</p>
+      <div class="grid3">
+        <label class="f">Symbol<input type="text" id="hSym" placeholder="OGDC" autocapitalize="characters"></label>
+        <label class="f">Face value (Rs)<input type="number" id="hFv" value="10" min="0.01" step="0.01"></label>
+      </div>
+      <textarea id="hPaste" style="margin-top:10px;min-height:100px" placeholder="Paste the Payouts table here" aria-label="Payout history"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="hBtn" type="button">Save history</button><span class="muted small" id="hMsg"></span></div>
+      <div id="hList" class="small muted" style="margin-top:8px"></div>
+    </div>
+
+    <h2 style="margin-top:28px">Settings</h2>
+    <div class="panel">
+      <div class="grid2">
+        <label class="f">Usual daily saving (Rs)<input type="number" id="sDaily" min="0" step="500"></label>
+        <label class="f">Shares in your target list<input type="number" id="sPicks" min="3" max="20"></label>
+        <label class="f">Most shares to buy in one week<input type="number" id="sPerWeek" min="1" max="6"></label>
+        <label class="f">Trading costs per order (%)<input type="number" id="sCost" min="0" max="3" step="0.01"></label>
+        <label class="f">Dividend tax
+          <select id="sFiler"><option value="1">15%, on the Active Taxpayers List</option><option value="0">30%, not on the list</option></select></label>
+        <label class="f">Most shares from one sector<input type="number" id="sSector" min="1" max="5"></label>
+      </div>
+      <p class="muted small" style="margin-top:10px">Trading costs cover broker commission, CDC and exchange charges, and tax on commission. Check your broker's rate card. For small orders, 0.2–0.3% is typical.</p>
+      <div class="row" style="margin-top:6px">
+        <label class="chip"><input type="checkbox" id="sShariah">Default to Shariah-compliant only</label>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Your data</h3>
+      <p class="small">Data is saved on this device. When you're signed in, it also syncs to your account so you can use it on your phone and computer.</p>
+      <div class="row"><button class="btn" id="exportBtn" type="button">Download a backup</button><label class="btn">Restore a backup<input type="file" id="restoreIn" accept=".json" class="hidden"></label><button class="btn danger" id="signOutBtn" type="button">Sign out</button></div>
+    </div>
+    <p class="muted small">This tool ranks shares with a fixed formula on data you import. It is not investment advice. Check a company's latest results and announcements before you buy.</p>
+  </div>
+</section>
+</main>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm"><div class="dh"><h3 id="dlgTitle"></h3></div><div class="db" id="dlgBody"></div><div class="df" id="dlgFoot"></div></form></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ================= STATE ================= */
+const KEYS=["settings","market","history","trades","divs","savings"];
+const DEFAULTS={
+  settings:{daily:10000,picks:8,perWeek:3,cost:0.25,filer:true,sector:2,shariah:false},
+  market:{updated:null,source:null,rows:{}},
+  history:{},trades:[],divs:[],savings:{}
+};
+const MIN_ORDER=5000; // below this, trading costs eat too much of a small order
+const ISLAMIC_ETF=new Set(["MZNPETF","MIIETF"]);
+let S=load();
+function load(){
+  let d={};try{d=JSON.parse(localStorage.getItem("psxdd")||"{}")}catch(_){}
+  const o={};for(const k of KEYS)o[k]=d[k]!=null?d[k]:JSON.parse(JSON.stringify(DEFAULTS[k]));
+  o.settings=Object.assign({},DEFAULTS.settings,o.settings);
+  return o;
+}
+const dirty=new Set();
+function save(...keys){
+  try{localStorage.setItem("psxdd",JSON.stringify(S))}catch(_){}
+  keys.forEach(k=>dirty.add(k));schedulePush();
+}
+
+/* ================= HELPERS ================= */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nf=new Intl.NumberFormat("en-PK",{maximumFractionDigits:0});
+const nf2=new Intl.NumberFormat("en-PK",{minimumFractionDigits:2,maximumFractionDigits:2});
+const rs=v=>"Rs "+nf.format(Math.round(v||0));
+const rs2=v=>"Rs "+nf2.format(v||0);
+const pct=(v,d=1)=>v==null||isNaN(v)?"–":(+v).toFixed(d)+"%";
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const uid=()=>Math.random().toString(36).slice(2,10);
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function pkNow(){const n=new Date();return new Date(n.getTime()+n.getTimezoneOffset()*6e4+5*36e5)}
+function weekStart(d){const x=new Date(d);const wd=(x.getDay()+6)%7;x.setDate(x.getDate()-wd);x.setHours(0,0,0,0);return x}
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("on"),2600)}
+function fmtDate(s){if(!s)return"";const d=new Date(s+"T00:00:00");return d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
+
+/* ================= SCORING ================= */
+function isEtf(r){return /ETF$/i.test(r.sym)||/exchange traded/i.test(r.sector||"")}
+function isShariah(r){
+  if(r.shariah!=null)return r.shariah;
+  if(isEtf(r))return ISLAMIC_ETF.has(r.sym);
+  return /KMI/i.test(r.listed||"");
+}
+function histStats(sym){
+  const h=S.history[sym];if(!h||!h.rows||!h.rows.length)return null;
+  const now=pkNow();const cut=new Date(now);cut.setFullYear(cut.getFullYear()-5);
+  const years=new Set();let last12=0;const y12=new Date(now);y12.setFullYear(y12.getFullYear()-1);
+  const byYear={};
+  for(const r of h.rows){
+    const d=new Date(r.date+"T00:00:00");if(isNaN(d))continue;
+    const dps=r.pct/100*(h.fv||10);
+    if(d>=cut){years.add(d.getFullYear());byYear[d.getFullYear()]=(byYear[d.getFullYear()]||0)+dps}
+    if(d>=y12)last12+=dps;
+  }
+  const ys=Object.keys(byYear).map(Number).sort();
+  let trend=null;if(ys.length>=3){const a=byYear[ys[0]],b=byYear[ys[ys.length-2]];if(a>0)trend=b/a-1}
+  return {years:Math.min(5,years.size),last12,trend,count:h.rows.length};
+}
+function scoreRow(r){
+  const etf=isEtf(r);const flags=[];const why=[];
+  const dy=r.dy,pe=r.pe;
+  // yield
+  let sy;
+  if(dy==null||isNaN(dy))sy=etf?0.4:0;
+  else if(dy<=0)sy=0;
+  else if(dy<=12)sy=dy/12;
+  else if(dy<=18)sy=1;
+  else{sy=Math.max(0.3,1-(dy-18)/20);flags.push("Very high yield, check it can last")}
+  // payout cover
+  let sc=0.4,payout=null;
+  if(dy>0&&pe>0){payout=dy*pe/100;
+    if(payout<=0.3)sc=0.7;else if(payout<=0.75)sc=1;else if(payout<=1)sc=1-(payout-0.75)*2;
+    else{sc=Math.max(0,0.5-(payout-1));flags.push("Pays out more than it earns")}}
+  // valuation
+  let sv;
+  if(pe==null||isNaN(pe))sv=etf?0.5:0.3;
+  else if(pe<=0){sv=0;if(!etf)flags.push("Making a loss")}
+  else if(pe<3)sv=0.6;else if(pe<=8)sv=1;else if(pe<=15)sv=1-(pe-8)/14;else sv=Math.max(0.1,0.5-(pe-15)/30);
+  // steadiness
+  const hs=histStats(r.sym);let ss=0.5;
+  if(hs){ss=hs.years/5;if(hs.trend!=null&&hs.trend<-0.3)ss*=0.8}
+  // growth
+  const g=[];if(r.chg1y!=null)g.push(clamp((r.chg1y+20)/60));if(r.rev!=null)g.push(clamp((r.rev+10)/40));
+  const sg=g.length?g.reduce((a,b)=>a+b)/g.length:0.5;
+  // liquidity / size
+  const l=[];if(r.vol>0)l.push(clamp((Math.log10(r.vol)-4)/2));if(r.mcap>0)l.push(clamp((Math.log10(r.mcap*1000)-9)/2.5));
+  const sl=l.length?l.reduce((a,b)=>a+b)/l.length:0.4;
+  if(r.vol!=null&&r.vol<20000)flags.push("Thinly traded");
+  const parts={yield:sy,cover:sc,value:sv,steady:ss,growth:sg,liquid:sl};
+  const W={yield:.30,cover:.20,value:.15,steady:.15,growth:.10,liquid:.10};
+  let total=0;for(const k in W)total+=W[k]*parts[k];
+  // reasons
+  if(dy>=7&&dy<=18)why.push(`pays about ${dy.toFixed(1)}% a year`);
+  else if(dy>0)why.push(`yield ${dy.toFixed(1)}%`);
+  if(payout!=null&&payout<=0.75)why.push(`profits cover the dividend ${(1/payout).toFixed(1)} times`);
+  if(pe>=3&&pe<=8)why.push(`cheap at ${pe.toFixed(1)} times earnings`);
+  if(hs&&hs.years>=4)why.push(`paid in ${hs.years} of the last 5 years`);
+  if(r.chg1y>15)why.push(`up ${r.chg1y.toFixed(0)}% over a year`);
+  if(etf)why.push("spreads your money across many companies");
+  const eligible=r.price>0&&(etf?true:(dy>0&&pe>0))&&!flags.includes("Pays out more than it earns");
+  return {score:Math.round(total*100),parts,flags,why,eligible,etf,payout,hs};
+}
+function ranked(opts={}){
+  const st=S.settings;const rows=Object.values(S.market.rows||{});
+  const sh=opts.shariah!=null?opts.shariah:st.shariah;const etf=opts.etf!=null?opts.etf:true;
+  return rows.map(r=>Object.assign({r},scoreRow(r)))
+    .filter(x=>(etf||!x.etf)&&(!sh||isShariah(x.r)))
+    .sort((a,b)=>b.score-a.score);
+}
+function targetList(opts){
+  const st=S.settings;const per={};const out=[];
+  for(const x of ranked(opts)){
+    if(!x.eligible)continue;
+    const sec=x.etf?"ETF":(x.r.sector||"Other");
+    if((per[sec]||0)>=st.sector)continue;
+    per[sec]=(per[sec]||0)+1;out.push(x);
+    if(out.length>=st.picks)break;
+  }
+  return out;
+}
+
+/* ================= HOLDINGS ================= */
+function holdings(){
+  const h={};
+  for(const t of [...S.trades].sort((a,b)=>a.date<b.date?-1:1)){
+    const x=h[t.sym]||(h[t.sym]={sym:t.sym,qty:0,cost:0});
+    if(t.qty>0){x.qty+=t.qty;x.cost+=t.qty*t.price+(+t.fees||0)}
+    else{const q=-t.qty;const avg=x.qty?x.cost/x.qty:0;x.qty-=q;x.cost-=avg*q}
+  }
+  return Object.values(h).filter(x=>x.qty>0).map(x=>{
+    const m=S.market.rows[x.sym];const price=m&&m.price>0?m.price:null;
+    return Object.assign(x,{avg:x.cost/x.qty,price,value:price!=null?price*x.qty:x.cost,name:m?m.name:"",dy:m?m.dy:null});
+  });
+}
+function cashAvailable(){
+  const saved=Object.values(S.savings).reduce((a,b)=>a+(+b||0),0);
+  const spent=S.trades.reduce((a,t)=>a+(t.qty>0?t.qty*t.price+(+t.fees||0):-(-t.qty*t.price-(+t.fees||0))),0);
+  const divNet=S.divs.reduce((a,d)=>a+(+d.net||0),0);
+  return {saved,spent,divNet,cash:saved+divNet-spent};
+}
+
+/* ================= WEEKLY PLAN ================= */
+function buildPlan(){
+  const st=S.settings;const picks=targetList();
+  const {cash}=cashAvailable();
+  if(!picks.length)return {picks,cash,lines:[],reason:"nodata"};
+  const H={};holdings().forEach(h=>H[h.sym]=h);
+  const held=p=>{const h=H[p.r.sym];return h?h.qty*p.r.price:0};
+  const totalAfter=picks.reduce((a,p)=>a+held(p),0)+Math.max(0,cash);
+  const target=totalAfter/picks.length;
+  const k=Math.max(1,Math.min(st.perWeek,Math.floor(cash/15000)||1));
+  const gaps=picks.map(p=>({p,gap:Math.max(0,target-held(p))})).filter(g=>g.gap>0&&g.p.r.price*(1+st.cost/100)<=cash).sort((a,b)=>b.gap-a.gap).slice(0,k);
+  if(cash<MIN_ORDER)return {picks,cash,lines:[],reason:cash<=0?"nocash":"toosmall"};
+  if(!gaps.length)return {picks,cash,lines:[],reason:"toosmall"};
+  const gsum=gaps.reduce((a,g)=>a+g.gap,0);const f=1+st.cost/100;
+  let left=cash;
+  const lines=gaps.map(g=>{const alloc=cash*g.gap/gsum;const q=Math.floor(alloc/(g.p.r.price*f));return {x:g.p,qty:q}});
+  lines.forEach(l=>left-=l.qty*l.x.r.price*f);
+  // spend leftovers one share at a time, biggest gap first
+  let moved=true;while(moved){moved=false;for(const l of lines){const c=l.x.r.price*f;if(c<=left){l.qty++;left-=c;moved=true}}}
+  const out=lines.filter(l=>l.qty>0&&l.qty*l.x.r.price>=2000).map(l=>({sym:l.x.r.sym,name:l.x.r.name,qty:l.qty,price:l.x.r.price,amount:l.qty*l.x.r.price,fees:l.qty*l.x.r.price*st.cost/100,why:l.x.why,flags:l.x.flags}));
+  return {picks,cash,lines:out,left,target};
+}
+
+/* ================= RENDER: WEEK ================= */
+function renderWeek(){
+  const today=pkNow();const ws=weekStart(today);
+  const days=[];for(let i=0;i<7;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);days.push(d)}
+  $("weekRange").textContent=days[0].toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" to "+days[6].toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+  const ti=iso(today);
+  $("weekStrip").innerHTML=days.map(d=>{const k=iso(d);const v=S.savings[k];const fut=k>ti;
+    return `<button type="button" class="day${v?" saved":""}${k===ti?" today":""}${fut?" future":""}" data-d="${k}" ${fut?"disabled":""} aria-label="${d.toLocaleDateString("en-GB",{weekday:"long"})}${v?", saved "+rs(v):""}">${d.toLocaleDateString("en-GB",{weekday:"short"})}<b>${v?(v>=1000?Math.round(v/1000)+"k":nf.format(v)):"–"}</b></button>`}).join("");
+  renderSlip();
+}
+function renderSlip(){
+  const area=$("slipArea");
+  const p=buildPlan();
+  const c=cashAvailable();
+  if(p.reason==="nodata"){
+    area.innerHTML=`<div class="panel empty"><h3>Import market data to get your buy list</h3><p class="small">The app needs this week's prices and dividend yields from PSX. It takes about a minute.</p><button class="btn primary" type="button" data-go="data">Go to import</button></div>`;
+    return;
+  }
+  const head=`<div class="slip-head"><div class="small">Ready to invest</div><div class="amount">${rs(Math.max(0,c.cash))}</div><div class="sub">Saved ${rs(c.saved)}${c.divNet?" plus "+rs(c.divNet)+" in dividends":""}, spent ${rs(c.spent)} so far</div></div>`;
+  if(!p.lines.length){
+    const cheapest=p.picks.reduce((a,x)=>Math.min(a,x.r.price),Infinity);
+    area.innerHTML=`<div class="slip">${head}<div class="slip-body"><p style="margin-top:12px">${p.reason==="nocash"?"Mark your savings above. Your buy slip will appear here.":(c.cash<MIN_ORDER?`Keep saving. Your next buy slip appears once you have ${rs(MIN_ORDER)} ready, so trading costs stay small.`:`Keep saving. The cheapest share on your list costs ${rs2(cheapest)}.`)}</p></div></div>`;
+    return;
+  }
+  const tot=p.lines.reduce((a,l)=>a+l.amount+l.fees,0);
+  area.innerHTML=`<div class="slip">${head}<div class="slip-body">
+    <h3 style="margin:14px 0 2px">This week's buy slip</h3>
+    <p class="muted small" style="margin:0">Place these orders with your broker. Prices are from your last import${S.market.updated?" ("+fmtDate(S.market.updated)+")":""}, so the market price may differ a little.</p>
+    ${p.lines.map(l=>`<div class="line"><div><span class="sym">${esc(l.sym)}</span>${l.flags.map(f=>`<span class="tag warn">${esc(f)}</span>`).join("")}</div><div class="amt">${rs(l.amount)}</div><div class="nm">${esc(l.name)}</div><div class="qty">${nf.format(l.qty)} × ${rs2(l.price)}</div>${l.why.length?`<div class="why">Why: ${esc(l.why.slice(0,3).join(", "))}.</div>`:""}</div>`).join("")}
+    <div class="slip-foot"><div><div class="tot">Total about ${rs(tot)}</div><div class="muted small">including ${rs(p.lines.reduce((a,l)=>a+l.fees,0))} trading costs, ${rs(p.left)} carried to next week</div></div><button class="btn primary" type="button" id="boughtBtn">Mark as bought</button></div>
+  </div></div>`;
+  $("boughtBtn").onclick=()=>openBought(p.lines);
+}
+$("weekStrip").addEventListener("click",e=>{
+  const b=e.target.closest(".day");if(!b||b.disabled)return;const k=b.dataset.d;const cur=S.savings[k];
+  openDialog(cur?"Change saving":"Mark a saving",`<label class="f">Amount set aside on ${fmtDate(k)} (Rs)<input type="number" id="svAmt" min="0" step="500" value="${cur||S.settings.daily}"></label>`,
+  [cur?{t:"Clear",v:"clear",cls:"danger"}:null,{t:"Cancel",v:"cancel"},{t:"Save",v:"ok",cls:"primary"}],v=>{
+    if(v==="clear"){delete S.savings[k]}
+    else if(v==="ok"){const a=+$("svAmt").value;if(a>0)S.savings[k]=a;else delete S.savings[k]}
+    else return;
+    save("savings");renderAll();
+  });
+});
+function openBought(lines){
+  const today=iso(pkNow());
+  openDialog("Record what you bought",`<p class="small muted">Change the quantity or price to match what your broker actually filled. Set quantity to 0 for anything you didn't buy.</p>
+    <label class="f" style="margin-bottom:10px">Date<input type="date" id="bDate" value="${today}"></label>
+    ${lines.map((l,i)=>`<div class="grid3" style="margin-bottom:8px;align-items:end"><div><b>${esc(l.sym)}</b></div><label class="f">Shares<input type="number" min="0" id="bq${i}" value="${l.qty}"></label><label class="f">Price<input type="number" step="0.01" min="0" id="bp${i}" value="${l.price.toFixed(2)}"></label></div>`).join("")}`,
+  [{t:"Cancel",v:"cancel"},{t:"Save trades",v:"ok",cls:"primary"}],v=>{
+    if(v!=="ok")return;const d=$("bDate").value||today;let n=0;
+    lines.forEach((l,i)=>{const q=Math.floor(+$("bq"+i).value),pr=+$("bp"+i).value;if(q>0&&pr>0){S.trades.push({id:uid(),date:d,sym:l.sym,qty:q,price:pr,fees:+(q*pr*S.settings.cost/100).toFixed(2)});n++}});
+    save("trades");renderAll();toast(n?`Saved ${n} trade${n>1?"s":""}`:"Nothing saved");
+  });
+}
+
+/* ================= RENDER: PICKS ================= */
+function renderPicks(){
+  const area=$("picksArea");
+  if(!Object.keys(S.market.rows||{}).length){area.innerHTML=`<div class="panel empty"><h3>No market data yet</h3><p class="small">Import the PSX screener table to see rankings.</p><button class="btn primary" type="button" data-go="data">Go to import</button></div>`;return}
+  const sh=$("fShariah").checked,etf=$("fEtf").checked,all=$("fAll").checked,q=$("fSearch").value.trim().toUpperCase();
+  const tl=new Set(targetList({shariah:sh,etf}).map(x=>x.r.sym));
+  let list=ranked({shariah:sh,etf});
+  if(!all)list=list.filter(x=>x.etf||x.r.dy>0);
+  if(q)list=list.filter(x=>x.r.sym.includes(q)||(x.r.name||"").toUpperCase().includes(q));
+  const shown=list.slice(0,q?200:120);
+  area.innerHTML=`<p class="small muted" style="margin:0 0 8px">${list.length} shares. A green edge marks your target list${sh?" (Shariah-compliant only)":""}. Tap a row for details.</p>
+  <div class="tbl-wrap"><table><thead><tr><th scope="col">Share</th><th scope="col">Score</th><th scope="col">Yield</th><th scope="col">P/E</th><th scope="col">Price</th><th scope="col">1 year</th></tr></thead><tbody>
+  ${shown.map(x=>`<tr class="rowbtn${tl.has(x.r.sym)?" pick":""}" data-s="${esc(x.r.sym)}" tabindex="0"><td><span class="s">${esc(x.r.sym)}</span>${isShariah(x.r)?'<span class="tag isl">Shariah</span>':""}${x.etf?'<span class="tag">ETF</span>':""}${x.flags.length?'<span class="tag warn">Check</span>':""}<span class="n">${esc(x.r.name||x.r.sector||"")}</span></td>
+  <td><span class="score">${x.score}<span class="bar"><i style="width:${x.score}%"></i></span></span></td><td>${pct(x.r.dy)}</td><td>${x.r.pe!=null?(+x.r.pe).toFixed(1):"–"}</td><td>${x.r.price!=null?nf2.format(x.r.price):"–"}</td><td>${pct(x.r.chg1y,0)}</td></tr>`).join("")}
+  </tbody></table></div>${list.length>shown.length?`<p class="small muted">Showing the top ${shown.length}. Search to find others.</p>`:""}`;
+}
+["fShariah","fEtf","fAll"].forEach(id=>$(id).addEventListener("change",renderPicks));
+$("fSearch").addEventListener("input",renderPicks);
+function rowDetail(sym){
+  const r=S.market.rows[sym];if(!r)return;const x=scoreRow(r);const P=x.parts;
+  const lab={yield:"Dividend yield",cover:"Profits cover the payout",value:"Price against earnings",steady:"Steady payments",growth:"Growth",liquid:"Easy to buy and sell"};
+  const hs=x.hs;
+  openDialog(`${sym}: ${x.score} out of 100`,`<p class="small muted">${esc(r.name||"")}${r.sector?", "+esc(r.sector):""}</p>
+    ${x.flags.map(f=>`<p class="note bad small">${esc(f)}</p>`).join("")}
+    <div class="tbl-wrap" style="margin:10px 0"><table><tbody>${Object.keys(lab).map(k=>`<tr><td>${lab[k]}</td><td><span class="score">${Math.round(P[k]*100)}<span class="bar"><i style="width:${Math.round(P[k]*100)}%"></i></span></span></td></tr>`).join("")}</tbody></table></div>
+    <p class="small">Yield ${pct(r.dy)}, P/E ${r.pe!=null?(+r.pe).toFixed(1):"–"}${x.payout!=null?`, paying out about ${Math.round(x.payout*100)}% of profit`:""}. ${hs?`Dividend history: paid in ${hs.years} of the last 5 years.`:"No dividend history added yet, so steadiness counts as average."}</p>
+    <label class="f" style="margin-top:8px">Shariah status<select id="dShariah"><option value="auto">Automatic (${isShariah(Object.assign({},r,{shariah:null}))?"compliant":"not compliant"})</option><option value="yes">Compliant</option><option value="no">Not compliant</option></select></label>
+    <p class="small" style="margin-top:10px"><a href="https://dps.psx.com.pk/company/${encodeURIComponent(sym)}" target="_blank" rel="noopener">Open ${esc(sym)} on the PSX data portal</a></p>`,
+  [{t:"Close",v:"ok",cls:"primary"}],v=>{
+    const s=$("dShariah").value;r.shariah=s==="auto"?null:s==="yes";save("market");renderAll();
+  },()=>{$("dShariah").value=r.shariah==null?"auto":r.shariah?"yes":"no"});
+}
+$("picksArea").addEventListener("click",e=>{const t=e.target.closest("tr[data-s]");if(t)rowDetail(t.dataset.s)});
+$("picksArea").addEventListener("keydown",e=>{if(e.key==="Enter"){const t=e.target.closest("tr[data-s]");if(t)rowDetail(t.dataset.s)}});
+
+/* ================= RENDER: HOLDINGS ================= */
+function taxRate(){return S.settings.filer?0.15:0.30}
+function renderFolio(){
+  const H=holdings();const c=cashAvailable();
+  const value=H.reduce((a,h)=>a+h.value,0),cost=H.reduce((a,h)=>a+h.cost,0);
+  const yr=new Date(pkNow());yr.setFullYear(yr.getFullYear()-1);const yIso=iso(yr);
+  const div12=S.divs.filter(d=>d.date>=yIso).reduce((a,d)=>a+(+d.net||0),0);
+  const expect=H.reduce((a,h)=>a+(h.dy>0&&h.price?h.value*h.dy/100:0),0)*(1-taxRate());
+  const gain=value-cost;
+  $("folioStats").innerHTML=`<div><div class="k">Worth now</div><div class="v">${rs(value)}</div></div>
+  <div><div class="k">Gain on price</div><div class="v">${cost?(gain>=0?"+ ":"− ")+rs(Math.abs(gain)):"–"}</div></div>
+  <div><div class="k">Dividends, last 12 months</div><div class="v brass">${rs(div12)}</div></div>
+  <div><div class="k">Expected dividends a year, after tax</div><div class="v brass">${rs(expect)}</div></div>
+  <div><div class="k">Cash waiting</div><div class="v">${rs(Math.max(0,c.cash))}</div></div>
+  <div><div class="k">Total dividends received</div><div class="v brass">${rs(c.divNet)}</div></div>`;
+  const ha=$("holdArea");
+  if(!H.length){ha.innerHTML=`<div class="panel empty"><h3>No holdings yet</h3><p class="small">When you mark a buy slip as bought, or record a trade, your shares appear here.</p></div>`}
+  else ha.innerHTML=`<div class="tbl-wrap"><table><thead><tr><th scope="col">Share</th><th scope="col">Shares</th><th scope="col">Avg cost</th><th scope="col">Price</th><th scope="col">Worth</th><th scope="col">Gain</th></tr></thead><tbody>${H.sort((a,b)=>b.value-a.value).map(h=>{const g=h.price!=null?(h.price/h.avg-1)*100:null;return `<tr><td><span class="s">${esc(h.sym)}</span><span class="n">${esc(h.name)}</span></td><td>${nf.format(h.qty)}</td><td>${nf2.format(h.avg)}</td><td>${h.price!=null?nf2.format(h.price):"–"}</td><td>${nf.format(h.value)}</td><td>${g==null?"–":(g>=0?"+":"")+g.toFixed(1)+"%"}</td></tr>`}).join("")}</tbody></table></div>
+  <details style="margin-top:8px"><summary class="small">All trades (${S.trades.length})</summary><div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>Share</th><th>Shares</th><th>Price</th><th></th></tr></thead><tbody>${[...S.trades].sort((a,b)=>a.date<b.date?1:-1).map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${esc(t.sym)}</td><td>${t.qty>0?"+":""}${nf.format(t.qty)}</td><td>${nf2.format(t.price)}</td><td><button class="btn quiet danger" type="button" data-del-t="${t.id}">Delete</button></td></tr>`).join("")}</tbody></table></div></details>`;
+  const da=$("divArea");
+  da.innerHTML=S.divs.length?`<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Share</th><th>Received</th><th>Tax taken</th><th></th></tr></thead><tbody>${[...S.divs].sort((a,b)=>a.date<b.date?1:-1).map(d=>`<tr><td>${fmtDate(d.date)}</td><td>${esc(d.sym)}</td><td>${nf.format(d.net)}</td><td>${nf.format(d.tax||0)}</td><td><button class="btn quiet danger" type="button" data-del-d="${d.id}">Delete</button></td></tr>`).join("")}</tbody></table></div>`
+  :`<p class="small muted" style="margin:0">When a dividend reaches your bank account, record it here. It counts towards your next buy.</p>`;
+  renderProjection();
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-del-t]");if(t){S.trades=S.trades.filter(x=>x.id!==t.dataset.delT);save("trades");renderAll();toast("Trade deleted")}
+  const d=e.target.closest("[data-del-d]");if(d){S.divs=S.divs.filter(x=>x.id!==d.dataset.delD);save("divs");renderAll();toast("Dividend deleted")}
+  const g=e.target.closest("[data-go]");if(g)go(g.dataset.go);
+});
+$("addTradeBtn").onclick=()=>{
+  openDialog("Record a trade",`<div class="grid2"><label class="f">Type<select id="tType"><option value="b">Buy</option><option value="s">Sell</option></select></label><label class="f">Date<input type="date" id="tDate" value="${iso(pkNow())}"></label><label class="f">Symbol<input type="text" id="tSym" autocapitalize="characters" list="symList"></label><label class="f">Shares<input type="number" id="tQty" min="1"></label><label class="f">Price per share<input type="number" id="tPrice" min="0" step="0.01"></label><label class="f">Charges (Rs)<input type="number" id="tFees" min="0" step="0.01" placeholder="Worked out if blank"></label></div>${symDatalist()}`,
+  [{t:"Cancel",v:"cancel"},{t:"Save trade",v:"ok",cls:"primary"}],v=>{
+    if(v!=="ok")return;const sym=$("tSym").value.trim().toUpperCase(),q=Math.floor(+$("tQty").value),p=+$("tPrice").value;
+    if(!sym||!(q>0)||!(p>0)){toast("Enter a symbol, shares and price");return false}
+    const fees=$("tFees").value!==""?+$("tFees").value:+(q*p*S.settings.cost/100).toFixed(2);
+    S.trades.push({id:uid(),date:$("tDate").value,sym,qty:$("tType").value==="s"?-q:q,price:p,fees});save("trades");renderAll();toast("Trade saved");
+  });
+};
+$("addDivBtn").onclick=()=>{
+  const H=holdings();
+  openDialog("Record a dividend",`<p class="small muted">Enter what reached your account. The tax is usually shown on the dividend warrant or the bank credit advice.</p><div class="grid2"><label class="f">Date<input type="date" id="dvDate" value="${iso(pkNow())}"></label><label class="f">Symbol<input type="text" id="dvSym" autocapitalize="characters" list="symList" value="${H.length===1?esc(H[0].sym):""}"></label><label class="f">Amount received (Rs)<input type="number" id="dvNet" min="0" step="0.01"></label><label class="f">Tax taken (Rs)<input type="number" id="dvTax" min="0" step="0.01" placeholder="Optional"></label></div>${symDatalist()}`,
+  [{t:"Cancel",v:"cancel"},{t:"Save dividend",v:"ok",cls:"primary"}],v=>{
+    if(v!=="ok")return;const sym=$("dvSym").value.trim().toUpperCase(),net=+$("dvNet").value;
+    if(!sym||!(net>0)){toast("Enter a symbol and amount");return false}
+    S.divs.push({id:uid(),date:$("dvDate").value,sym,net,tax:+$("dvTax").value||0});save("divs");renderAll();toast("Dividend saved");
+  });
+};
+function symDatalist(){const s=new Set([...Object.keys(S.market.rows||{}),...S.trades.map(t=>t.sym)]);return `<datalist id="symList">${[...s].sort().map(x=>`<option value="${esc(x)}">`).join("")}</datalist>`}
+
+/* ================= PROJECTION ================= */
+function projection(){
+  const years=+$("pYears").value;const y=(+$("pYield").value||0)/100;const g=(+$("pGrowth").value||0)/100;const re=$("pReinvest").checked;
+  const daysPerWeek=(()=>{const vals=Object.keys(S.savings);if(vals.length<7)return 7;const ws=new Set(vals.map(k=>iso(weekStart(new Date(k+"T00:00:00")))));return Math.min(7,Math.max(1,Math.round(vals.length/ws.size)))})();
+  const monthly=S.settings.daily*daysPerWeek*52/12;const tax=taxRate();
+  const H=holdings();let V=H.reduce((a,h)=>a+h.value,0)+Math.max(0,cashAvailable().cash);let inv=V;
+  const gm=Math.pow(1+g,1/12)-1;const out=[{year:0,value:V,invested:inv,div:0}];let yDiv=0;
+  for(let m=1;m<=years*12;m++){
+    const d=V*y/12*(1-tax);yDiv+=d;
+    V=(V+monthly+(re?d:0))*(1+gm);inv+=monthly;
+    if(m%12===0){out.push({year:m/12,value:V,invested:inv,div:yDiv});yDiv=0}
+  }
+  return {rows:out,monthly};
+}
+function renderProjection(){
+  if($("pYield").value===""){const t=targetList();const avg=t.length?t.reduce((a,x)=>a+Math.min(x.r.dy||0,15),0)/t.length:9;$("pYield").value=(Math.round(avg*2)/2||9).toFixed(1)}
+  const {rows,monthly}=projection();
+  $("projNote").textContent=`Saving about ${rs(monthly)} a month`;
+  const last=rows[rows.length-1];
+  lineChart($("projChart"),rows);barChart($("divChart"),rows.slice(1));
+  $("projTable").innerHTML=`<thead><tr><th>Year</th><th>Put in</th><th>Worth</th><th>Dividends that year</th></tr></thead><tbody>${rows.slice(1).map(r=>`<tr><td>${r.year}</td><td>${nf.format(r.invested)}</td><td>${nf.format(r.value)}</td><td>${nf.format(r.div)}</td></tr>`).join("")}</tbody>`;
+  return last;
+}
+["pYears","pYield","pGrowth","pReinvest"].forEach(id=>$(id).addEventListener("input",renderProjection));
+function short(v){if(v>=1e7)return(v/1e7).toFixed(v>=1e8?0:1)+" cr";if(v>=1e5)return(v/1e5).toFixed(v>=1e6?0:1)+" lakh";if(v>=1e3)return Math.round(v/1e3)+"k";return Math.round(v)+""}
+function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
+function chartW(el){return Math.round(Math.max(300,Math.min(720,el.clientWidth||640)))}
+let rzT;window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if($("v-folio").classList.contains("on"))renderProjection()},150)});
+function setupTip(el){let t=el.querySelector(".tip");if(!t){t=document.createElement("div");t.className="tip";el.appendChild(t)}return t}
+function lineChart(el,rows){
+  const W=chartW(el),H=240,L=50,R=58,T=12,B=26;const max=niceMax(Math.max(...rows.map(r=>Math.max(r.value,r.invested))));
+  const n=rows.length-1;const x=i=>L+(W-L-R)*i/Math.max(1,n);const y=v=>T+(H-T-B)*(1-v/max);
+  const path=k=>rows.map((r,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(r[k]).toFixed(1)).join("");
+  const ticks=[0,.25,.5,.75,1].map(f=>f*max);const lastR=rows[rows.length-1];
+  const step=Math.max(1,Math.ceil(n/Math.max(2,Math.floor((W-L-R)/46))));
+  let ly1=y(lastR.value),ly2=y(lastR.invested);if(Math.abs(ly1-ly2)<16){if(ly1<ly2)ly2=ly1+16;else ly1=ly2+16}
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected portfolio value against money put in over ${n} years">
+  ${ticks.map(v=>`<line class="gridl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-8}" y="${y(v)+4}" text-anchor="end">${short(v)}</text>`).join("")}
+  ${rows.map((r,i)=>(i===n||(i%step===0&&n-i>=step))?`<text class="axis" x="${x(i)}" y="${H-6}" text-anchor="middle">${i===0?"Now":"Yr "+i}</text>`:"").join("")}
+  <path d="${path("invested")}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>
+  <path d="${path("value")}" fill="none" stroke="var(--green)" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="${x(n)}" cy="${y(lastR.value)}" r="4" fill="var(--green)" stroke="var(--surface)" stroke-width="2"/>
+  <text class="lbl" x="${x(n)+10}" y="${ly1+4}">${short(lastR.value)}</text>
+  <text class="lbl" x="${x(n)+10}" y="${ly2+4}" style="fill:var(--muted)">${short(lastR.invested)}</text>
+  <line id="cross" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="var(--ink-2)" stroke-width="1" opacity="0"/>
+  <rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" id="hit"/></svg>`;
+  const tip=setupTip(el);const svg=el.querySelector("svg");const cross=svg.querySelector("#cross");
+  const move=ev=>{const b=svg.getBoundingClientRect();const px=(ev.clientX-b.left)*W/b.width;const i=Math.round(clamp((px-L)/(W-L-R))*n);const r=rows[i];
+    cross.setAttribute("x1",x(i));cross.setAttribute("x2",x(i));cross.setAttribute("opacity",".5");
+    tip.innerHTML=`${i===0?"Now":"Year "+i}: worth ${rs(r.value)}<br>put in ${rs(r.invested)}`;tip.style.left=(x(i)*b.width/W)+"px";tip.style.top=(y(r.value)*b.height/H)+"px";tip.classList.add("on")};
+  svg.querySelector("#hit").addEventListener("pointermove",move);svg.querySelector("#hit").addEventListener("pointerdown",move);
+  svg.querySelector("#hit").addEventListener("pointerleave",()=>{tip.classList.remove("on");cross.setAttribute("opacity","0")});
+}
+function barChart(el,rows){
+  const W=chartW(el),H=170,L=50,R=58,T=18,B=26;const max=niceMax(Math.max(...rows.map(r=>r.div)));const n=rows.length;
+  const bw=(W-L-R)/n;const y=v=>T+(H-T-B)*(1-v/max);const step=Math.max(1,Math.ceil(n/Math.max(2,Math.floor((W-L-R)/46))));
+  const w=Math.max(4,bw-2);
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Dividends received each year after tax">
+  ${[0,.5,1].map(f=>`<line class="gridl" x1="${L}" x2="${W-R}" y1="${y(f*max)}" y2="${y(f*max)}"/><text class="axis" x="${L-8}" y="${y(f*max)+4}" text-anchor="end">${short(f*max)}</text>`).join("")}
+  ${rows.map((r,i)=>{const x0=L+i*bw+(bw-w)/2;const h=Math.max(0,y(0)-y(r.div));const rr=Math.min(4,w/2,h);
+    return `<path data-i="${i}" d="M${x0} ${y(0)}V${y(0)-h+rr}Q${x0} ${y(0)-h} ${x0+rr} ${y(0)-h}H${x0+w-rr}Q${x0+w} ${y(0)-h} ${x0+w} ${y(0)-h+rr}V${y(0)}Z" fill="var(--brass)"/>
+    ${(i===n-1||(i%step===0&&n-1-i>=step))?`<text class="axis" x="${x0+w/2}" y="${H-6}" text-anchor="middle">Yr ${r.year}</text>`:""}`}).join("")}
+  <text class="lbl" x="${L+(n-1)*bw+bw/2}" y="${y(rows[n-1].div)-6}" text-anchor="middle">${short(rows[n-1].div)}</text>
+  ${rows.map((r,i)=>`<rect data-i="${i}" x="${L+i*bw}" y="${T}" width="${bw}" height="${H-T-B}" fill="transparent"/>`).join("")}</svg>`;
+  const tip=setupTip(el);const svg=el.querySelector("svg");
+  svg.querySelectorAll("rect[data-i]").forEach(rc=>{const show=()=>{const r=rows[+rc.dataset.i];const b=svg.getBoundingClientRect();const i=+rc.dataset.i;tip.innerHTML=`Year ${r.year}: ${rs(r.div)} in dividends<br>about ${rs(r.div/12)} a month`;tip.style.left=((L+i*bw+bw/2)*b.width/W)+"px";tip.style.top=(y(r.div)*b.height/H)+"px";tip.classList.add("on")};
+    rc.addEventListener("pointerenter",show);rc.addEventListener("pointerdown",show);rc.addEventListener("pointerleave",()=>tip.classList.remove("on"))});
+}
+
+/* ================= IMPORT ================= */
+function num(s){
+  if(s==null)return null;s=String(s).trim();if(!s||s==="-"||s==="–"||/^n\/?a$/i.test(s))return null;
+  let neg=/^\(.*\)$/.test(s)||/^-/.test(s);s=s.replace(/[(),%\s]|Rs\.?/gi,"").replace(/^-/,"");
+  let m=1;if(/[kK]$/.test(s)){m=1e3;s=s.slice(0,-1)}else if(/[mM]$/.test(s)){m=1e6;s=s.slice(0,-1)}else if(/[bB]$/.test(s)){m=1e9;s=s.slice(0,-1)}
+  const v=parseFloat(s);return isNaN(v)?null:(neg?-v:v)*m;
+}
+function splitCSV(line,delim){
+  if(delim!==",")return line.split(delim);
+  const out=[];let cur="",q=false;
+  for(let i=0;i<line.length;i++){const c=line[i];if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===","){out.push(cur);cur=""}else cur+=c}
+  out.push(cur);return out;
+}
+const HEAD=[
+  ["sym",/^(symbol|scrip|ticker)/i],["name",/^(company|name)/i],["sector",/sector/i],["listed",/listed/i],
+  ["mcap",/market\s*cap|mkt\.?\s*cap/i],["chg1y",/(1\s*y|1-year|one year|52\s*w.*change|yearly)/i],
+  ["pe",/p\s*\/\s*e|pe\s*ratio|price.*earn/i],["dy",/div.*yield|yield/i],["ff",/free\s*float/i],
+  ["vol",/vol/i],["rev",/revenue|sales\s*growth/i],["chg",/change/i],["ldcp",/ldcp|prev/i],["price",/^(price|current|close|last|rate)/i]
+];
+function mapHeader(cells){
+  const map={};cells.forEach((c,i)=>{c=c.trim();for(const [k,re] of HEAD){if(map[k]!=null)continue;if(re.test(c)){if(k==="chg"&&map.chg1y===i)continue;map[k]=i;break}}});
+  return map;
+}
+function parseTable(text){
+  text=text.replace(/\r/g,"");const lines=text.split("\n").filter(l=>l.trim());
+  if(!lines.length)return {rows:[],kind:"empty"};
+  // PSX closing-rates file: pipe separated, no header
+  if(lines.filter(l=>(l.match(/\|/g)||[]).length>=8).length>lines.length*0.6){
+    const rows=[];let date=null;
+    for(const l of lines){const f=l.split("|").map(s=>s.trim());if(f.length<9)continue;
+      const sym=f[1];if(!/^[A-Z0-9-]{2,12}$/i.test(sym))continue;
+      const close=num(f[7]);if(!(close>0))continue;date=date||f[0];
+      rows.push({sym:sym.toUpperCase(),name:f[3]||"",price:close,vol:num(f[8]),ldcp:num(f[9])})}
+    return {rows,kind:"closing",date};
+  }
+  const delim=lines.some(l=>l.includes("\t"))?"\t":",";
+  let hi=lines.findIndex(l=>/symbol|scrip|ticker/i.test(l));
+  if(hi<0)return {rows:[],kind:"noheader"};
+  const header=splitCSV(lines[hi],delim);const map=mapHeader(header);
+  if(map.sym==null)return {rows:[],kind:"noheader"};
+  const need=header.length;const rows=[];
+  let buf=[];
+  for(let i=hi+1;i<lines.length;i++){
+    let cells=splitCSV(lines[i],delim);
+    if(buf.length){buf[buf.length-1]+=" "+cells.shift();buf=buf.concat(cells)}else buf=cells;
+    if(buf.length<need-1&&i<lines.length-1)continue; // cell content broke onto a new line
+    const c=buf;buf=[];
+    let sym=(c[map.sym]||"").trim().split(/\s+/)[0].toUpperCase();if(!/^[A-Z0-9-]{2,12}$/.test(sym)||sym==="SYMBOL")continue;
+    const g=k=>map[k]!=null?c[map[k]]:null;
+    let name=g("name");if(!name){const rest=(c[map.sym]||"").trim().split(/\s+/).slice(1).join(" ");if(rest)name=rest}
+    const r={sym,name:name?String(name).trim():undefined,sector:g("sector")?.trim(),listed:g("listed")?.trim(),
+      mcap:num(g("mcap")),price:num(g("price")),chg1y:num(g("chg1y")),pe:num(g("pe")),dy:num(g("dy")),ff:num(g("ff")),vol:num(g("vol")),rev:num(g("rev"))};
+    if(r.price==null&&map.ldcp!=null)r.price=num(g("ldcp"));
+    rows.push(r);
+  }
+  return {rows,kind:"table"};
+}
+function mergeRows(rows,kind){
+  const M=S.market.rows||(S.market.rows={});let n=0;
+  for(const r of rows){const cur=M[r.sym]||{sym:r.sym};
+    for(const k in r){if(r[k]!==undefined&&r[k]!==null&&r[k]!=="")cur[k]=r[k]}
+    // keep yield consistent with new price when only prices changed
+    if(kind==="closing"&&cur.dy>0&&cur._px>0&&r.price>0){cur.dy=cur.dy*cur._px/r.price}
+    if(kind!=="closing"&&r.price>0)cur._px=r.price; else if(kind==="closing"&&r.price>0)cur._px=r.price;
+    M[r.sym]=cur;n++}
+  n=new Set(rows.map(r=>r.sym)).size;
+  S.market.updated=iso(pkNow());S.market.source=kind;
+  save("market");return n;
+}
+$("importBtn").onclick=()=>{
+  const res=parseTable($("pasteBox").value);
+  if(!res.rows.length){$("importMsg").textContent=res.kind==="noheader"?"Couldn't find a header row with 'Symbol'. Copy the table including its header.":"Nothing to import. Paste the table first.";return}
+  const n=mergeRows(res.rows,res.kind);$("pasteBox").value="";
+  const withDy=res.rows.filter(r=>r.dy>0).length;
+  $("importMsg").textContent=`Imported ${n} shares${withDy?`, ${withDy} of them paying dividends`:""}.`;renderAll();toast("Market data updated");
+};
+$("fileIn").addEventListener("change",async e=>{
+  const f=e.target.files[0];if(!f)return;let buf=new Uint8Array(await f.arrayBuffer());
+  try{
+    if(buf[0]===0x1f&&buf[1]===0x9d)buf=unlzw(buf);
+    else if(buf[0]===0x1f&&buf[1]===0x8b&&"DecompressionStream" in window){buf=new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer())}
+    const res=parseTable(new TextDecoder().decode(buf));
+    if(!res.rows.length){$("importMsg").textContent="That file didn't contain a table this app can read.";return}
+    const n=mergeRows(res.rows,res.kind);
+    $("importMsg").textContent=res.kind==="closing"?`Updated prices for ${n} shares${res.date?" ("+res.date+")":""}.`:`Imported ${n} shares.`;renderAll();toast("Market data updated");
+  }catch(err){$("importMsg").textContent="Couldn't read that file: "+err.message}
+  e.target.value="";
+});
+/* Unix .Z (LZW) decompression, as used for PSX daily files */
+function unlzw(u8){
+  const flags=u8[2],maxbits=flags&0x1f,block=!!(flags&0x80);if(maxbits<9||maxbits>16)throw new Error("unsupported .Z file");
+  const maxmax=1<<maxbits;const prefix=new Uint32Array(maxmax),suffix=new Uint8Array(maxmax);for(let i=0;i<256;i++)suffix[i]=i;
+  const data=u8.subarray(3);const nbits=data.length*8;let pos=0,bits=9,maxcode=(1<<bits)-1,free=block?257:256;
+  const out=[];let chunk=new Uint8Array(1<<16),ol=0;const push=b=>{if(ol===chunk.length){out.push(chunk);chunk=new Uint8Array(1<<16);ol=0}chunk[ol++]=b};
+  const stack=new Uint8Array(maxmax+1);let old=-1,fin=0;
+  // codes come in groups of 8; when the code width changes the rest of the group is padding
+  let seg=0;const align=()=>{const g=bits*8;pos=seg+Math.ceil((pos-seg)/g)*g;seg=pos};
+  for(;;){
+    if(free>maxcode&&bits<maxbits){align();bits++;maxcode=bits===maxbits?maxmax:(1<<bits)-1}
+    else if(free>maxcode&&bits===maxbits){maxcode=maxmax}
+    if(pos+bits>nbits)break;
+    const bi=pos>>3;let v=data[bi]|(data[bi+1]<<8)|(data[bi+2]<<16);let code=(v>>>(pos&7))&((1<<bits)-1);pos+=bits;
+    if(old===-1){if(code>=256)throw new Error("bad .Z data");old=fin=code;push(code);continue}
+    if(code===256&&block){align();free=256;bits=9;maxcode=(1<<bits)-1;
+      // next code starts a new string; register nothing for the clear itself
+      if(pos+bits>nbits)break;const bj=pos>>3;let w=data[bj]|(data[bj+1]<<8)|(data[bj+2]<<16);code=(w>>>(pos&7))&511;pos+=bits;
+      old=fin=code;push(code);free=257;continue}
+    const inc=code;let sp=0;
+    if(code>=free){if(code>free)throw new Error("corrupt .Z data");stack[sp++]=fin;code=old}
+    while(code>=256){stack[sp++]=suffix[code];code=prefix[code]}
+    fin=suffix[code];stack[sp++]=fin;while(sp)push(stack[--sp]);
+    if(free<maxmax){prefix[free]=old;suffix[free]=fin;free++}
+    old=inc;
+  }
+  out.push(chunk.subarray(0,ol));const tot=out.reduce((a,c)=>a+c.length,0);const res=new Uint8Array(tot);let o=0;for(const c of out){res.set(c,o);o+=c.length}return res;
+}
+/* payout history */
+function parsePayouts(text){
+  const rows=[];const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  for(const line of text.replace(/\r/g,"").split("\n")){
+    let d=null;let m=line.match(/([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/);
+    if(m&&MON[m[1].toLowerCase()]!=null)d=new Date(+m[3],MON[m[1].toLowerCase()],+m[2]);
+    if(!d){m=line.match(/(\d{4})-(\d{2})-(\d{2})/);if(m)d=new Date(+m[1],+m[2]-1,+m[3])}
+    if(!d){m=line.match(/(\d{1,2})[\/-]([A-Za-z]{3}|\d{1,2})[\/-](\d{4})/);if(m){const mo=isNaN(m[2])?MON[m[2].toLowerCase()]:+m[2]-1;d=new Date(+m[3],mo,+m[1])}}
+    if(!d||isNaN(d))continue;
+    const re=/(\d+(?:\.\d+)?)\s*%\s*(\([A-Za-z]+\))?\s*(\([A-Za-z]\))?/g;let x;
+    while((x=re.exec(line))){const kind=(x[3]||"").toUpperCase();if(kind==="(B)"||kind==="(R)")continue;if(!kind&&/bonus|right/i.test(line))continue;
+      rows.push({date:iso(d),pct:+x[1]})}
+  }
+  return rows;
+}
+$("hBtn").onclick=()=>{
+  const sym=$("hSym").value.trim().toUpperCase();const fv=+$("hFv").value||10;
+  if(!sym){$("hMsg").textContent="Enter the symbol first.";return}
+  const rows=parsePayouts($("hPaste").value);
+  if(!rows.length){$("hMsg").textContent="No cash dividends found. Paste the Payouts table including dates and percentages, for example 50%(F) (D).";return}
+  S.history[sym]={fv,rows,updated:iso(pkNow())};save("history");$("hPaste").value="";
+  const hs=histStats(sym);$("hMsg").textContent=`Saved ${rows.length} payouts for ${sym}: ${rs2(hs.last12)} a share in the last 12 months.`;renderAll();
+};
+function renderHist(){const ks=Object.keys(S.history).sort();$("hList").innerHTML=ks.length?"History saved for: "+ks.map(k=>`${esc(k)} (${S.history[k].rows.length})`).join(", "):""}
+
+/* ================= SETTINGS ================= */
+const SET=[["sDaily","daily",v=>Math.max(0,+v)],["sPicks","picks",v=>clamp(Math.round(+v)||8,3,20)],["sPerWeek","perWeek",v=>clamp(Math.round(+v)||3,1,6)],["sCost","cost",v=>clamp(+v,0,3)],["sSector","sector",v=>clamp(Math.round(+v)||2,1,5)]];
+function renderSettings(){
+  SET.forEach(([id,k])=>{if(document.activeElement!==$(id))$(id).value=S.settings[k]});
+  $("sFiler").value=S.settings.filer?"1":"0";$("sShariah").checked=!!S.settings.shariah;
+}
+SET.forEach(([id,k,fn])=>$(id).addEventListener("change",()=>{S.settings[k]=fn($(id).value);save("settings");renderAll()}));
+$("sFiler").addEventListener("change",()=>{S.settings.filer=$("sFiler").value==="1";save("settings");renderAll()});
+$("sShariah").addEventListener("change",()=>{S.settings.shariah=$("sShariah").checked;$("fShariah").checked=S.settings.shariah;save("settings");renderAll()});
+$("exportBtn").onclick=()=>{const b=new Blob([JSON.stringify(S,null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="psx-dividend-desk-"+iso(pkNow())+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+$("restoreIn").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());for(const k of KEYS)if(d[k]!=null)S[k]=d[k];S.settings=Object.assign({},DEFAULTS.settings,S.settings);save(...KEYS);renderAll();toast("Backup restored")}catch(_){toast("That isn't a backup file from this app")}e.target.value=""});
+
+/* ================= DIALOG ================= */
+function openDialog(title,body,buttons,onClose,onOpen){
+  const d=$("dlg");$("dlgTitle").textContent=title;$("dlgBody").innerHTML=body;
+  $("dlgFoot").innerHTML=buttons.filter(Boolean).map(b=>`<button class="btn ${b.cls||""}" value="${b.v}">${esc(b.t)}</button>`).join("");
+  $("dlgForm").onsubmit=e=>{const v=e.submitter?e.submitter.value:"ok";if(onClose&&onClose(v)===false){e.preventDefault()}};
+  d.showModal();onOpen&&onOpen();const f=d.querySelector("input,select");if(f&&window.innerWidth>700)f.focus();
+}
+
+/* ================= NAV ================= */
+function go(v){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v?"true":"false"));
+  document.querySelectorAll("section.view").forEach(s=>s.classList.toggle("on",s.id==="v-"+v));
+  try{localStorage.setItem("psxdd-tab",v)}catch(_){}
+  window.scrollTo(0,0);
+  if(v==="folio")renderProjection();
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>go(b.dataset.v));
+function renderAll(){
+  const n=Object.keys(S.market.rows||{}).length;
+  $("asof").textContent=n?`${n} shares · prices from ${fmtDate(S.market.updated)}`:"No market data yet";
+  renderWeek();renderPicks();renderFolio();renderSettings();renderHist();
+}
+
+/* ================= SUPABASE SYNC (schema: psx) ================= */
+const SB_URL="https://nmbmtdeoceprhsorlenq.supabase.co",SB_KEY="sb_publishable_sredBn5j6gFF8LLRP2qVmw_eeVUrwPG";
+let sb=null,user=null,pushT=null,pushing=false;
+function client(){if(!sb&&window.supabase&&window.supabase.createClient){try{sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"psxdd-auth"}})}catch(_){sb=null}}return sb}
+function setSync(t,s){const b=$("syncBtn");b.textContent=t;b.dataset.s=s||""}
+function schedulePush(){if(!user)return;clearTimeout(pushT);pushT=setTimeout(push,800)}
+async function push(){
+  if(!user||pushing||!dirty.size)return;pushing=true;const ks=[...dirty];dirty.clear();
+  try{for(const k of ks){const {error}=await client().rpc("psx_set",{p_key:k,p_data:S[k]});if(error)throw error}setSync("Synced","ok")}
+  catch(e){ks.forEach(k=>dirty.add(k));setSync("Offline","err")}
+  finally{pushing=false;if(dirty.size)schedulePush()}
+}
+async function pull(){
+  const c=client();if(!c)return;const {data:sess}=await c.auth.getSession();user=sess&&sess.session?sess.session.user:null;
+  if(!user){setSync("Sign in");return}
+  setSync("Syncing…");
+  try{
+    const {data,error}=await c.rpc("psx_get");if(error)throw error;const remote={};(data||[]).forEach(r=>remote[r.k]=r.data);
+    for(const k of KEYS){
+      if(remote[k]==null){if(JSON.stringify(S[k])!==JSON.stringify(DEFAULTS[k]))dirty.add(k);continue}
+      if(k==="trades"||k==="divs"){const ids=new Set(remote[k].map(x=>x.id));S[k]=remote[k].concat(S[k].filter(x=>!ids.has(x.id)));if(S[k].length!==remote[k].length)dirty.add(k)}
+      else if(k==="savings"||k==="history"){const merged=Object.assign({},S[k],remote[k]);if(Object.keys(merged).length!==Object.keys(remote[k]).length)dirty.add(k);S[k]=merged}
+      else if(k==="market"){if(!S.market.updated||(remote.market.updated&&remote.market.updated>=S.market.updated))S.market=remote.market;else dirty.add(k)}
+      else S[k]=Object.assign({},DEFAULTS[k],remote[k]);
+    }
+    try{localStorage.setItem("psxdd",JSON.stringify(S))}catch(_){}
+    renderAll();if(dirty.size)push();else setSync("Synced","ok");
+  }catch(e){setSync("Offline","err")}
+}
+$("syncBtn").onclick=()=>{
+  if(user){toast("Signed in as "+user.email);return}
+  if(!client()){toast("Sign-in isn't available offline");return}
+  openDialog("Sign in to sync",`<p class="small muted">Use the same account as your other apps. Your data then syncs between your phone and computer.</p><label class="f">Email<input type="email" id="aEmail" autocomplete="email"></label><label class="f" style="margin-top:10px">Password<input type="password" id="aPass" autocomplete="current-password"></label><p class="small" id="aMsg" style="margin-top:8px"></p>`,
+  [{t:"Create account",v:"new"},{t:"Cancel",v:"cancel"},{t:"Sign in",v:"ok",cls:"primary"}],v=>{
+    if(v==="cancel")return;const email=$("aEmail").value.trim(),password=$("aPass").value;
+    if(!email||password.length<6){$("aMsg").textContent="Enter your email and a password of at least 6 characters.";return false}
+    $("aMsg").textContent="Working…";
+    (async()=>{
+      const c=client();
+      const r=v==="new"?await c.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}}):await c.auth.signInWithPassword({email,password});
+      if(r.error){$("aMsg").textContent=r.error.message;return}
+      if(v==="new"&&!r.data.session){$("aMsg").textContent="Check your email to confirm the account, then sign in.";return}
+      $("dlg").close();await pull();toast("Signed in");
+    })();
+    return false;
+  });
+};
+$("signOutBtn").onclick=async()=>{if(!user){toast("You're not signed in");return}await client().auth.signOut();user=null;setSync("Sign in");toast("Signed out. Your data stays on this device.")};
+
+/* ================= START ================= */
+$("fShariah").checked=!!S.settings.shariah;
+try{const t=localStorage.getItem("psxdd-tab");if(t&&$("v-"+t))go(t)}catch(_){}
+renderAll();
+pull();
+if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
