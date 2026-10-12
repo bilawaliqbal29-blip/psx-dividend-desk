@@ -237,7 +237,7 @@ dialog .df{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;
   <div class="stack">
     <div>
       <h2>Rankings</h2>
-      <p class="lede" style="margin-top:6px">Each share gets a score out of 100. It weighs how much it pays (30%), whether profits cover that payout (20%), price against earnings (15%), how steadily it has paid (15%), growth (10%), and how easy it is to buy (10%). The top ones, at most two per sector, become your target list.</p>
+      <p class="lede" style="margin-top:6px">Each share gets a score out of 100. It weighs how much it pays (30%), whether profits cover that payout (20%), price against earnings (15%), how steadily it has paid (15%), growth (10%), and how easy it is to buy (10%). The top ones become your target list.</p>
     </div>
     <div class="filters">
       <label class="chip"><input type="checkbox" id="fShariah">Shariah-compliant only</label>
@@ -286,9 +286,8 @@ dialog .df{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;
       <p class="small">Paste tables from the PSX data portal below. The app reads either table and combines them.</p>
       <ol class="steps small">
         <li><b>Every week, before you buy:</b> open <a href="https://dps.psx.com.pk/screener" target="_blank" rel="noopener">the PSX screener</a>, press <b>Search</b> with no filters, copy the whole results table from the header row down, paste it here and press <b>Import</b>. This brings in prices, dividend yields and P/E ratios.</li>
-        <li><b>Once a month:</b> do the same with <a href="https://dps.psx.com.pk/market-watch" target="_blank" rel="noopener">Market Watch</a>. This adds each company's sector and its "Listed in" indices. The Shariah filter and the one-sector limit need it.</li>
+        <li><b>Once a month:</b> the screener doesn't say which shares are Shariah-compliant. Paste the KMI All Share list into the <b>Shariah list</b> box below.</li>
       </ol>
-      <p class="muted small">Copy on a computer if you can. Chrome and Edge keep the columns separate, which Market Watch needs because sector names contain spaces.</p>
       <p class="small" id="dataStatus" style="margin:6px 0 10px"></p>
       <textarea id="pasteBox" placeholder="Paste the table here" aria-label="Pasted table"></textarea>
       <div class="row" style="margin-top:10px">
@@ -299,6 +298,12 @@ dialog .df{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;
       <p class="muted small" style="margin-top:10px">Files work too: a CSV saved from the screener, or the daily closing-rates file from <a href="https://dps.psx.com.pk/downloads" target="_blank" rel="noopener">PSX Downloads</a> (the .Z file), which updates prices only.</p>
     </div>
 
+    <div class="panel">
+      <h3>Shariah list</h3>
+      <p class="small">Open the <a href="https://dps.psx.com.pk/indices/KMIALLSHR" target="_blank" rel="noopener">KMI All Share index page</a> and copy its list of companies, from the header row to the last row. Paste it here and press <b>Save Shariah list</b>. Every share on the list is marked Shariah-compliant, and every other share is marked not compliant. Do this once a month, or when PSX revises the index.</p>
+      <textarea id="kmiPaste" style="min-height:100px" placeholder="Paste the KMI All Share companies here" aria-label="KMI All Share list"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="kmiBtn" type="button">Save Shariah list</button><span class="muted small" id="kmiMsg"></span></div>
+    </div>
     <div class="panel">
       <h3>Dividend history for one company</h3>
       <p class="small">Optional, but it sharpens the steadiness score. Open a company page such as <a href="https://dps.psx.com.pk/company/OGDC" target="_blank" rel="noopener">OGDC</a>, go to <b>Payouts</b>, copy the table and paste it here.</p>
@@ -382,9 +387,11 @@ function fmtDate(s){if(!s)return"";const d=new Date(s+"T00:00:00");return d.toLo
 
 /* ================= SCORING ================= */
 function isEtf(r){return /ETF$/i.test(r.sym)||/exchange traded/i.test(r.sector||"")}
+let KMI=null;function kmiSet(){const l=S.market.kmi;if(!l||!l.length)return null;if(!KMI||KMI._src!==l){KMI=new Set(l);KMI._src=l}return KMI}
 function isShariah(r){
   if(r.shariah!=null)return r.shariah;
   if(isEtf(r))return ISLAMIC_ETF.has(r.sym);
+  const k=kmiSet();if(k)return k.has(r.sym);
   return /KMI/i.test(r.listed||"");
 }
 function histStats(sym){
@@ -573,8 +580,8 @@ function renderPicks(){
   if(!all)list=list.filter(x=>x.etf||x.r.dy>0);
   if(q)list=list.filter(x=>x.r.sym.includes(q)||(x.r.name||"").toUpperCase().includes(q));
   const shown=list.slice(0,q?200:120);
-  const noIdx=!Object.values(S.market.rows).some(r=>r.listed!=null);
-  area.innerHTML=`${noIdx?`<p class="note small">The app doesn't know which shares are Shariah-compliant or which sector they're in yet. Import the <a href="#" data-go="data">Market Watch table</a> once to add this.</p>`:""}<p class="small muted" style="margin:${noIdx?"10px":"0"} 0 8px">${list.length} shares. A green edge marks your target list${sh?" (Shariah-compliant only)":""}. Tap a row for details.</p>
+  const noIdx=!kmiSet()&&!Object.values(S.market.rows).some(r=>r.listed!=null);
+  area.innerHTML=`${noIdx?`<p class="note small">The app doesn't know which shares are Shariah-compliant yet. Paste the <a href="#" data-go="data">KMI All Share list</a> once to add this.</p>`:""}<p class="small muted" style="margin:${noIdx?"10px":"0"} 0 8px">${list.length} shares. A green edge marks your target list${sh?" (Shariah-compliant only)":""}. Tap a row for details.</p>
   <div class="tbl-wrap"><table><thead><tr><th scope="col">Share</th><th scope="col">Score</th><th scope="col">Yield</th><th scope="col">P/E</th><th scope="col">Price</th><th scope="col">1 year</th></tr></thead><tbody>
   ${shown.map(x=>`<tr class="rowbtn${tl.has(x.r.sym)?" pick":""}" data-s="${esc(x.r.sym)}" tabindex="0"><td><span class="s">${esc(x.r.sym)}</span>${isShariah(x.r)?'<span class="tag isl">Shariah</span>':""}${x.etf?'<span class="tag">ETF</span>':""}${x.flags.length?'<span class="tag warn">Check</span>':""}<span class="n">${esc(x.r.name||x.r.sector||"")}</span></td>
   <td><span class="score">${x.score}<span class="bar"><i style="width:${x.score}%"></i></span></span></td><td>${pct(x.r.dy)}</td><td>${x.r.pe!=null?(+x.r.pe).toFixed(1):"–"}</td><td>${x.r.price!=null?nf2.format(x.r.price):"–"}</td><td>${pct(x.r.chg1y,0)}</td></tr>`).join("")}
@@ -873,6 +880,22 @@ function unlzw(u8){
   }
   out.push(chunk.subarray(0,ol));const tot=out.reduce((a,c)=>a+c.length,0);const res=new Uint8Array(tot);let o=0;for(const c of out){res.set(c,o);o+=c.length}return res;
 }
+/* Shariah (KMI All Share) list */
+function parseSymbolList(text){
+  const out=new Set();const res=parseTable(text);
+  if(res.kind==="table"&&res.rows.length)res.rows.forEach(r=>out.add(r.sym));
+  else for(const line of text.replace(/\r/g,"").split("\n")){const t=line.trim().split(/[\s,\t]+/)[0];if(t&&isSymTok(t.toUpperCase())&&!/^(SYMBOL|NAME|COMPANY|TOTAL|KMI)/i.test(t))out.add(t.toUpperCase())}
+  if(out.size<20){const known=S.market.rows||{};for(const t of text.toUpperCase().split(/[^A-Z0-9-]+/))if(known[t])out.add(t)}
+  return [...out];
+}
+$("kmiBtn").onclick=()=>{
+  const list=parseSymbolList($("kmiPaste").value);
+  if(list.length<20){$("kmiMsg").textContent=list.length?`Only found ${list.length} symbols. Copy the whole list of companies, including the header row.`:"Nothing found. Paste the list of companies first.";return}
+  S.market.kmi=list;S.market.kmiUpdated=iso(pkNow());save("market");$("kmiPaste").value="";
+  const known=Object.keys(S.market.rows||{}).filter(s=>list.includes(s)).length;
+  $("kmiMsg").textContent=`Saved ${list.length} Shariah-compliant companies${known?`, ${known} of them in your market data`:""}.`;renderAll();toast("Shariah list saved");
+};
+
 /* payout history */
 function parsePayouts(text){
   const rows=[];const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
@@ -899,8 +922,8 @@ $("hBtn").onclick=()=>{
 function renderDataStatus(){
   const rows=Object.values(S.market.rows||{});const el=$("dataStatus");if(!el)return;
   if(!rows.length){el.textContent="Nothing imported yet.";return}
-  const dy=rows.filter(r=>r.dy!=null).length,sec=rows.filter(r=>r.listed!=null||r.sector).length;
-  el.innerHTML=`You have <b>${rows.length}</b> shares: ${dy} with yields and P/E from the screener, ${sec} with sector and index from Market Watch.${sec?"":" <b>Import Market Watch next</b> so the Shariah filter works."}`;
+  const dy=rows.filter(r=>r.dy!=null).length;const k=S.market.kmi||[];
+  el.innerHTML=`You have <b>${rows.length}</b> shares, ${dy} with yields and P/E from the screener. ${k.length?`Shariah list: ${k.length} companies, saved ${fmtDate(S.market.kmiUpdated)}.`:"<b>No Shariah list yet.</b> Paste it below so the Shariah filter works."}`;
 }
 function renderHist(){renderDataStatus();const ks=Object.keys(S.history).sort();$("hList").innerHTML=ks.length?"History saved for: "+ks.map(k=>`${esc(k)} (${S.history[k].rows.length})`).join(", "):""}
 

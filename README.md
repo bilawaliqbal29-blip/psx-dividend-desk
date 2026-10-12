@@ -12,7 +12,7 @@ A personal planner for building a long-term dividend portfolio on the Pakistan S
 
 ## Weekly routine
 
-1. Every week: open https://dps.psx.com.pk/screener, copy the whole results table and paste it into **Import & settings**. Once a month, do the same with https://dps.psx.com.pk/market-watch to add sectors and Shariah (KMI) status.
+1. Every week: open https://dps.psx.com.pk/screener, copy the whole results table and paste it into **Import & settings**. Once a month, paste the company list from https://dps.psx.com.pk/indices/KMIALLSHR into the **Shariah list** box.
 2. On **This week**, place the orders on the buy slip with your broker, then press **Mark as bought**.
 3. When a dividend reaches your bank, record it under **Holdings**.
 
