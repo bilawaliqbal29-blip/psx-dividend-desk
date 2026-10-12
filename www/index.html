@@ -282,13 +282,14 @@ dialog .df{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;
   <div class="stack">
     <h2>Import market data</h2>
     <div class="panel">
-      <h3>Weekly update from the PSX screener</h3>
-      <p class="small">Do this once a week, before you buy. It refreshes prices, dividend yields and P/E ratios for every company.</p>
+      <h3>Update market data</h3>
+      <p class="small">Paste tables from the PSX data portal below. The app reads either table and combines them.</p>
       <ol class="steps small">
-        <li>Open <a href="https://dps.psx.com.pk/screener" target="_blank" rel="noopener">dps.psx.com.pk/screener</a> on a computer and press <b>Search</b> with no filters.</li>
-        <li>Select the whole results table, from the header row to the last row, and copy it (Ctrl+C).</li>
-        <li>Paste it below and press <b>Import</b>.</li>
+        <li><b>Every week, before you buy:</b> open <a href="https://dps.psx.com.pk/screener" target="_blank" rel="noopener">the PSX screener</a>, press <b>Search</b> with no filters, copy the whole results table from the header row down, paste it here and press <b>Import</b>. This brings in prices, dividend yields and P/E ratios.</li>
+        <li><b>Once a month:</b> do the same with <a href="https://dps.psx.com.pk/market-watch" target="_blank" rel="noopener">Market Watch</a>. This adds each company's sector and its "Listed in" indices. The Shariah filter and the one-sector limit need it.</li>
       </ol>
+      <p class="muted small">Copy on a computer if you can. Chrome and Edge keep the columns separate, which Market Watch needs because sector names contain spaces.</p>
+      <p class="small" id="dataStatus" style="margin:6px 0 10px"></p>
       <textarea id="pasteBox" placeholder="Paste the table here" aria-label="Pasted table"></textarea>
       <div class="row" style="margin-top:10px">
         <button class="btn primary" id="importBtn" type="button">Import</button>
@@ -428,7 +429,7 @@ function scoreRow(r){
   const g=[];if(r.chg1y!=null)g.push(clamp((r.chg1y+20)/60));if(r.rev!=null)g.push(clamp((r.rev+10)/40));
   const sg=g.length?g.reduce((a,b)=>a+b)/g.length:0.5;
   // liquidity / size
-  const l=[];if(r.vol>0)l.push(clamp((Math.log10(r.vol)-4)/2));if(r.mcap>0)l.push(clamp((Math.log10(r.mcap*1000)-9)/2.5));
+  const l=[];if(r.vol>0)l.push(clamp((Math.log10(r.vol)-4)/2));if(r.mcap>0)l.push(clamp((Math.log10(r.mcap)-9)/2.5));
   const sl=l.length?l.reduce((a,b)=>a+b)/l.length:0.4;
   if(r.vol!=null&&r.vol<20000)flags.push("Thinly traded");
   const parts={yield:sy,cover:sc,value:sv,steady:ss,growth:sg,liquid:sl};
@@ -456,7 +457,7 @@ function targetList(opts){
   const st=S.settings;const per={};const out=[];
   for(const x of ranked(opts)){
     if(!x.eligible)continue;
-    const sec=x.etf?"ETF":(x.r.sector||"Other");
+    const sec=x.etf?"ETF":(x.r.sector||("_"+x.r.sym));
     if((per[sec]||0)>=st.sector)continue;
     per[sec]=(per[sec]||0)+1;out.push(x);
     if(out.length>=st.picks)break;
@@ -572,7 +573,8 @@ function renderPicks(){
   if(!all)list=list.filter(x=>x.etf||x.r.dy>0);
   if(q)list=list.filter(x=>x.r.sym.includes(q)||(x.r.name||"").toUpperCase().includes(q));
   const shown=list.slice(0,q?200:120);
-  area.innerHTML=`<p class="small muted" style="margin:0 0 8px">${list.length} shares. A green edge marks your target list${sh?" (Shariah-compliant only)":""}. Tap a row for details.</p>
+  const noIdx=!Object.values(S.market.rows).some(r=>r.listed!=null);
+  area.innerHTML=`${noIdx?`<p class="note small">The app doesn't know which shares are Shariah-compliant or which sector they're in yet. Import the <a href="#" data-go="data">Market Watch table</a> once to add this.</p>`:""}<p class="small muted" style="margin:${noIdx?"10px":"0"} 0 8px">${list.length} shares. A green edge marks your target list${sh?" (Shariah-compliant only)":""}. Tap a row for details.</p>
   <div class="tbl-wrap"><table><thead><tr><th scope="col">Share</th><th scope="col">Score</th><th scope="col">Yield</th><th scope="col">P/E</th><th scope="col">Price</th><th scope="col">1 year</th></tr></thead><tbody>
   ${shown.map(x=>`<tr class="rowbtn${tl.has(x.r.sym)?" pick":""}" data-s="${esc(x.r.sym)}" tabindex="0"><td><span class="s">${esc(x.r.sym)}</span>${isShariah(x.r)?'<span class="tag isl">Shariah</span>':""}${x.etf?'<span class="tag">ETF</span>':""}${x.flags.length?'<span class="tag warn">Check</span>':""}<span class="n">${esc(x.r.name||x.r.sector||"")}</span></td>
   <td><span class="score">${x.score}<span class="bar"><i style="width:${x.score}%"></i></span></span></td><td>${pct(x.r.dy)}</td><td>${x.r.pe!=null?(+x.r.pe).toFixed(1):"–"}</td><td>${x.r.price!=null?nf2.format(x.r.price):"–"}</td><td>${pct(x.r.chg1y,0)}</td></tr>`).join("")}
@@ -719,7 +721,7 @@ function barChart(el,rows){
 function num(s){
   if(s==null)return null;s=String(s).trim();if(!s||s==="-"||s==="–"||/^n\/?a$/i.test(s))return null;
   let neg=/^\(.*\)$/.test(s)||/^-/.test(s);s=s.replace(/[(),%\s]|Rs\.?/gi,"").replace(/^-/,"");
-  let m=1;if(/[kK]$/.test(s)){m=1e3;s=s.slice(0,-1)}else if(/[mM]$/.test(s)){m=1e6;s=s.slice(0,-1)}else if(/[bB]$/.test(s)){m=1e9;s=s.slice(0,-1)}
+  let m=1;if(/[kK]$/.test(s)){m=1e3;s=s.slice(0,-1)}else if(/[mM]$/.test(s)){m=1e6;s=s.slice(0,-1)}else if(/[bB]$/.test(s)){m=1e9;s=s.slice(0,-1)}else if(/[tT]$/.test(s)){m=1e12;s=s.slice(0,-1)}
   const v=parseFloat(s);return isNaN(v)?null:(neg?-v:v)*m;
 }
 function splitCSV(line,delim){
@@ -730,13 +732,50 @@ function splitCSV(line,delim){
 }
 const HEAD=[
   ["sym",/^(symbol|scrip|ticker)/i],["name",/^(company|name)/i],["sector",/sector/i],["listed",/listed/i],
-  ["mcap",/market\s*cap|mkt\.?\s*cap/i],["chg1y",/(1\s*y|1-year|one year|52\s*w.*change|yearly)/i],
+  ["mcap",/market\s*cap|mkt\.?\s*cap/i],["chg1y",/(1\s*-?\s*y(ea)?r?\b|one year|52\s*w)/i],
   ["pe",/p\s*\/\s*e|pe\s*ratio|price.*earn/i],["dy",/div.*yield|yield/i],["ff",/free\s*float/i],
-  ["vol",/vol/i],["rev",/revenue|sales\s*growth/i],["chg",/change/i],["ldcp",/ldcp|prev/i],["price",/^(price|current|close|last|rate)/i]
+  ["vol",/vol.*av|av.*vol|30\s*d/i],["dvol",/vol/i],["rev",/revenue|sales\s*growth/i],["ldcp",/ldcp|prev/i],
+  ["chg",/change/i],["price",/^(price|current|close|last|rate)/i]
 ];
 function mapHeader(cells){
-  const map={};cells.forEach((c,i)=>{c=c.trim();for(const [k,re] of HEAD){if(map[k]!=null)continue;if(re.test(c)){if(k==="chg"&&map.chg1y===i)continue;map[k]=i;break}}});
+  const map={};cells.forEach((c,i)=>{c=c.trim();for(const [k,re] of HEAD){if(map[k]!=null)continue;if(re.test(c)){map[k]=i;break}}});
   return map;
+}
+const isSymTok=t=>/^[A-Z][A-Z0-9-]{1,11}$/.test(t);
+const isNumTok=t=>/^[-+]?\(?[\d.,]+\)?[%KMBT]?$/i.test(t)||t==="-"||t==="–"||/^n\/?a$/i.test(t);
+/* table copied as plain text with spaces between columns (e.g. from a phone) */
+function parseSpaced(text){
+  const T=text.replace(/\s+/g," ");const si=T.search(/\bSYMBOL\b/i);if(si<0)return null;
+  const dm=/\b[A-Z][A-Z0-9-]{1,11} [-+]?\(?[\d.,]+\)?[%KMBT]? /.exec(T.slice(si));if(!dm)return null;
+  const hs=T.slice(si,si+dm.index);const ds=T.slice(si+dm.index);
+  const PH=[["sym",/SYMBOL/i],["sector",/SECTOR/i],["listed",/LISTED IN/i],["mcap",/MARKET CAP\.?(\s*\(000'?S\))?/i],
+    ["chg1y",/1\s*-?\s*Y(EAR)?\.?\s*CH(ANGE)?\.?\s*(\(%\))?\s*\*?/i],["pe",/PE RATIO\s*(\(TTM\))?\s*\**/i],["dy",/DIVIDEND YIELD\s*(\(%\))?/i],
+    ["ff",/FREE FLOAT/i],["vol",/30\s*D\s+VOLUME\s+AVG\.?|30\s*D\s+AVG\.?\s+VOLUME|AVG\.?\s+VOLUME/i],["rev",/REVENUE GROWTH\s*(\(%\))?/i],
+    ["ldcp",/LDCP/i],["x1",/\bOPEN\b/i],["x2",/\bHIGH\b/i],["x3",/\bLOW\b/i],["chg",/CHANGE\s*(\(%\))?/i],["chg2",/CHANGE\s*(\(%\))?/i],
+    ["price",/\bPRICE\b|\bCURRENT\b/i],["dvol",/\bVOLUME\b/i]];
+  const spans=[];
+  for(const [k,re] of PH){const g=new RegExp(re.source,"gi");let m;while((m=g.exec(hs))){const a=m.index,b=a+m[0].length;if(!spans.some(s=>a<s.b&&b>s.a)){spans.push({k,a,b});break}if(!m[0].length)g.lastIndex++}}
+  spans.sort((x,y)=>x.a-y.a);const keys=spans.map(s=>s.k);
+  if(keys[0]!=="sym")return null;
+  if(keys.includes("sector")||keys.includes("listed"))return {rows:[],kind:"spacedtext"};
+  const tok=ds.trim().split(" ");const n=keys.length;const rows=[];
+  for(let i=0;i<tok.length;){
+    if(isSymTok(tok[i])&&i+n<=tok.length&&tok.slice(i+1,i+n).every(isNumTok)){
+      const c={};keys.forEach((k,j)=>c[k]=tok[i+j]);rows.push(rowFrom(c,false));i+=n;
+    }else i++;
+  }
+  return {rows,kind:"table"};
+}
+function rowFrom(c,mcapThousands){
+  // only columns present in the pasted table are set; a blank cell clears the old value
+  const r={sym:String(c.sym).trim().split(/\s+/)[0].toUpperCase()};
+  if(c.name)r.name=String(c.name).trim();
+  if(c.sector!=null&&String(c.sector).trim())r.sector=String(c.sector).trim();
+  if(c.listed!=null)r.listed=String(c.listed).trim();
+  for(const k of ["mcap","price","chg1y","pe","dy","vol","rev"])if(k in c)r[k]=num(c[k]);
+  if(r.mcap!=null&&mcapThousands)r.mcap*=1000;
+  if(r.price==null&&c.ldcp!=null)r.price=num(c.ldcp);
+  return r;
 }
 function parseTable(text){
   text=text.replace(/\r/g,"");const lines=text.split("\n").filter(l=>l.trim());
@@ -747,14 +786,18 @@ function parseTable(text){
     for(const l of lines){const f=l.split("|").map(s=>s.trim());if(f.length<9)continue;
       const sym=f[1];if(!/^[A-Z0-9-]{2,12}$/i.test(sym))continue;
       const close=num(f[7]);if(!(close>0))continue;date=date||f[0];
-      rows.push({sym:sym.toUpperCase(),name:f[3]||"",price:close,vol:num(f[8]),ldcp:num(f[9])})}
+      rows.push({sym:sym.toUpperCase(),name:f[3]||"",price:close,ldcp:num(f[9])})}
     return {rows,kind:"closing",date};
   }
-  const delim=lines.some(l=>l.includes("\t"))?"\t":",";
   let hi=lines.findIndex(l=>/symbol|scrip|ticker/i.test(l));
   if(hi<0)return {rows:[],kind:"noheader"};
+  const tabbed=lines.slice(hi).some(l=>l.includes("\t"));
+  const csv=!tabbed&&splitCSV(lines[hi],",").filter(c=>HEAD.some(([,re])=>re.test(c.trim()))).length>=3;
+  if(!tabbed&&!csv){return parseSpaced(lines.slice(hi).join(" "))||{rows:[],kind:"noheader"}}
+  const delim=tabbed?"\t":",";
   const header=splitCSV(lines[hi],delim);const map=mapHeader(header);
   if(map.sym==null)return {rows:[],kind:"noheader"};
+  const thousands=map.mcap!=null&&/000/.test(header[map.mcap]);
   const need=header.length;const rows=[];
   let buf=[];
   for(let i=hi+1;i<lines.length;i++){
@@ -762,20 +805,18 @@ function parseTable(text){
     if(buf.length){buf[buf.length-1]+=" "+cells.shift();buf=buf.concat(cells)}else buf=cells;
     if(buf.length<need-1&&i<lines.length-1)continue; // cell content broke onto a new line
     const c=buf;buf=[];
-    let sym=(c[map.sym]||"").trim().split(/\s+/)[0].toUpperCase();if(!/^[A-Z0-9-]{2,12}$/.test(sym)||sym==="SYMBOL")continue;
-    const g=k=>map[k]!=null?c[map[k]]:null;
-    let name=g("name");if(!name){const rest=(c[map.sym]||"").trim().split(/\s+/).slice(1).join(" ");if(rest)name=rest}
-    const r={sym,name:name?String(name).trim():undefined,sector:g("sector")?.trim(),listed:g("listed")?.trim(),
-      mcap:num(g("mcap")),price:num(g("price")),chg1y:num(g("chg1y")),pe:num(g("pe")),dy:num(g("dy")),ff:num(g("ff")),vol:num(g("vol")),rev:num(g("rev"))};
-    if(r.price==null&&map.ldcp!=null)r.price=num(g("ldcp"));
-    rows.push(r);
+    const symCell=(c[map.sym]||"").trim();const sym=symCell.split(/\s+/)[0].toUpperCase();
+    if(!/^[A-Z0-9-]{2,12}$/.test(sym)||sym==="SYMBOL")continue;
+    const o={};for(const k in map)o[k]=c[map[k]];
+    if(!o.name){const rest=symCell.split(/\s+/).slice(1).join(" ");if(rest)o.name=rest}
+    rows.push(rowFrom(o,thousands));
   }
   return {rows,kind:"table"};
 }
 function mergeRows(rows,kind){
   const M=S.market.rows||(S.market.rows={});let n=0;
   for(const r of rows){const cur=M[r.sym]||{sym:r.sym};
-    for(const k in r){if(r[k]!==undefined&&r[k]!==null&&r[k]!=="")cur[k]=r[k]}
+    for(const k in r){if(r[k]!==undefined)cur[k]=r[k]}
     // keep yield consistent with new price when only prices changed
     if(kind==="closing"&&cur.dy>0&&cur._px>0&&r.price>0){cur.dy=cur.dy*cur._px/r.price}
     if(kind!=="closing"&&r.price>0)cur._px=r.price; else if(kind==="closing"&&r.price>0)cur._px=r.price;
@@ -786,6 +827,7 @@ function mergeRows(rows,kind){
 }
 $("importBtn").onclick=()=>{
   const res=parseTable($("pasteBox").value);
+  if(!res.rows.length&&res.kind==="spacedtext"){$("importMsg").textContent="The columns ran together. Copy this table on a computer (Chrome or Edge) so the columns stay separate.";return}
   if(!res.rows.length){$("importMsg").textContent=res.kind==="noheader"?"Couldn't find a header row with 'Symbol'. Copy the table including its header.":"Nothing to import. Paste the table first.";return}
   const n=mergeRows(res.rows,res.kind);$("pasteBox").value="";
   const withDy=res.rows.filter(r=>r.dy>0).length;
@@ -854,7 +896,13 @@ $("hBtn").onclick=()=>{
   S.history[sym]={fv,rows,updated:iso(pkNow())};save("history");$("hPaste").value="";
   const hs=histStats(sym);$("hMsg").textContent=`Saved ${rows.length} payouts for ${sym}: ${rs2(hs.last12)} a share in the last 12 months.`;renderAll();
 };
-function renderHist(){const ks=Object.keys(S.history).sort();$("hList").innerHTML=ks.length?"History saved for: "+ks.map(k=>`${esc(k)} (${S.history[k].rows.length})`).join(", "):""}
+function renderDataStatus(){
+  const rows=Object.values(S.market.rows||{});const el=$("dataStatus");if(!el)return;
+  if(!rows.length){el.textContent="Nothing imported yet.";return}
+  const dy=rows.filter(r=>r.dy!=null).length,sec=rows.filter(r=>r.listed!=null||r.sector).length;
+  el.innerHTML=`You have <b>${rows.length}</b> shares: ${dy} with yields and P/E from the screener, ${sec} with sector and index from Market Watch.${sec?"":" <b>Import Market Watch next</b> so the Shariah filter works."}`;
+}
+function renderHist(){renderDataStatus();const ks=Object.keys(S.history).sort();$("hList").innerHTML=ks.length?"History saved for: "+ks.map(k=>`${esc(k)} (${S.history[k].rows.length})`).join(", "):""}
 
 /* ================= SETTINGS ================= */
 const SET=[["sDaily","daily",v=>Math.max(0,+v)],["sPicks","picks",v=>clamp(Math.round(+v)||8,3,20)],["sPerWeek","perWeek",v=>clamp(Math.round(+v)||3,1,6)],["sCost","cost",v=>clamp(+v,0,3)],["sSector","sector",v=>clamp(Math.round(+v)||2,1,5)]];
